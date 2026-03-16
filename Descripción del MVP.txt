@@ -1,0 +1,296 @@
+MVP – App de Liguillas de Rocódromo
+
+1. Objetivo del MVP
+
+Validar una aplicación lúdica y social para escalada indoor que permita crear liguillas / retos temporales basados en bloques reales del rocódromo, fomentando la participación mediante pique sano, reglas simples y recompensas informales.
+
+El MVP debe demostrar:
+
+Que los escaladores participan activamente en liguillas privadas u oficiales
+
+Que el formato funciona tanto para grupos de amigos como para rocódromos
+
+Que el sistema de puntuación es entendible, justo y divertido
+
+
+
+---
+
+2. Usuarios objetivo
+
+Escaladores
+
+Escalan en rocódromo de forma regular
+
+Suelen ir con el mismo grupo
+
+Les motiva el juego, el pique y los retos cortos
+
+No buscan exposición pública ni redes sociales
+
+
+Rocódromos (secundario en MVP)
+
+Quieren dinamizar la sala
+
+Buscan retos de temporada o eventos internos
+
+No necesitan integración compleja
+
+
+
+---
+
+3. Tipos de liguilla
+
+3.1 Liguilla privada
+
+Creada por un usuario
+
+Acceso por invitación (link o código)
+
+Participantes ilimitados o con límite configurable
+
+
+3.2 Liguilla oficial de rocódromo
+
+Creada por la gerencia
+
+Inscripción abierta hasta alcanzar un máximo
+
+Al llegar al máximo, la inscripción se cierra automáticamente
+
+
+
+---
+
+4. Configuración de una liguilla
+
+Cada liguilla incluye:
+
+📛 Nombre
+
+📍 Rocódromo (opcional)
+
+📅 Fecha de inicio y fin
+
+🏆 Recompensa (texto libre)
+
+👥 Participantes (ilimitado o número máximo)
+
+🧱 Conjunto de bloques
+
+
+Número de bloques permitido
+
+Grupos privados: 5 / 10 / 15 / 20
+
+Rocódromos / temporada: 20 / 30 / 40 / 50
+
+
+
+---
+
+5. Definición de bloques
+
+Cada bloque contiene:
+
+📸 Una foto
+
+🏷️ Identificador (nombre, color o sector)
+
+⚖️ Dificultad (opcional):
+
+Novato
+
+Medio
+
+Avanzado
+
+Experimentado
+
+Profesional
+
+
+
+La dificultad no representa un grado, sino una categoría relativa.
+
+
+---
+
+6. Sistema de puntuación
+
+6.1 Puntuación base por bloque
+
+Resultado	Puntos base
+
+Flash	10
+2 pegues	5
+3 pegues	4
+4 pegues	3
+5 pegues	2
++5 pegues / no encadenado	1
+No probado	0
+
+
+6.2 Bonus por dificultad
+
+Dificultad	Bonus
+
+Novato	+0
+Medio	+1
+Avanzado	+2
+Experimentado	+3
+Profesional	+4
+
+
+Puntuación final del bloque = puntos base + bonus por dificultad
+
+
+---
+
+7. Reglas del juego
+
+Cada usuario se auto-reporta
+
+Solo cuenta el mejor resultado por bloque
+
+No se acumulan puntos por repetir
+
+El resultado queda fijado al finalizar la liguilla
+
+El creador de la liguilla actúa como “árbitro implícito”
+
+
+
+---
+
+8. Empates
+
+Orden de desempate:
+
+1. Nº de bloques encadenados
+
+
+2. Nº de flashes
+
+
+3. Suma de dificultades encadenadas
+
+
+4. Menor nº total de pegues
+
+
+5. Empate
+
+
+
+
+---
+
+9. Modo especial: Ranking de temporada (no core MVP)
+
+Ranking global del rocódromo
+
+Temporada definida (ej: 3 meses)
+
+Cada semana:
+
+Se añade 1 bloque nuevo
+
+Se elimina el más antiguo
+
+
+Cada escalador mantiene su mejor resultado por bloque
+
+
+
+---
+
+10. Funcionalidades incluidas en el MVP
+
+Para usuarios
+
+Crear liguilla
+
+Unirse a liguilla
+
+Subir bloques (foto + datos)
+
+Registrar resultado de un bloque
+
+Ver ranking en tiempo real
+
+
+Para rocódromos (básico)
+
+Crear liguilla oficial
+
+Ver ranking general
+
+
+
+---
+
+11. Funcionalidades fuera del MVP
+
+Vídeos
+
+Comentarios
+
+Likes / seguidores
+
+Validación de intentos
+
+Integraciones externas
+
+
+
+---
+
+12. Monetización inicial
+
+App gratuita
+
+Publicidad no intrusiva:
+
+Banner en ranking
+
+Pantalla final de resultados
+
+
+Publicidad contextual (tiendas, bares, marcas locales)
+
+
+
+---
+
+13. Métricas de éxito
+
+Nº de liguillas creadas
+
+Nº medio de participantes por liguilla
+
+% de bloques registrados
+
+Repetición de uso (usuarios que crean más de una liguilla)
+
+
+
+---
+
+14. Principios del producto
+
+El juego está por encima de la precisión
+
+Reglas simples > justicia perfecta
+
+Privado y humano antes que social y público
+
+Pensado para bloques efímeros
+
+
+
+---
+
+Resumen: Un MVP ligero, divertido y realista que convierte la escalada indoor en un juego social organizado, sin competir con redes sociales ni depender de validación externa.
