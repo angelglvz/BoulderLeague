@@ -1,0 +1,30 @@
+Stack tecnológico
+
+Recomendación principal:
+
+· React Native: Es la opción más natural para ti si ya conoces React. La curva de aprendizaje será suave. Tiene una comunidad enorme, muchos recursos y es muy potente. Es la opción más popular y segura para un MVP serio.
+· Expo: Es un framework y plataforma construido SOBRE React Native. Es PERFECTO para tu caso. Simplifica enormemente el desarrollo, la construcción y el despliegue. Te permite:
+  · Empezar en minutos sin configurar entornos nativos complejos.
+  · Probar la app en tu teléfono físico al instante con su app (Expo Go).
+  · Generar los builds (.apk / .ipa) desde su servicio en la nube, sin tocar Android Studio o Xcode.
+  · Para un MVP como el tuyo, que no necesita funcionalidades nativas muy exóticas, Expo es la mejor manera de evitar el "infierno" de la configuración inicial.
+
+Plan de acción:
+
+1. Crea una cuenta en Supabase.
+2. Diseña unas tablas SQL simples en su interfaz:
+   · users (id, email, nombre...)
+   · leagues (id, name, gym_id, start_date, end_date, reward, is_private, creator_id...)
+   · blocks (id, league_id, photo_url, identifier, difficulty...)
+   · attempts (id, user_id, block_id, score, number_of_goes, timestamp...)
+3. Activa la autenticación y el almacenamiento.
+4. ¡Ya tienes tu backend listo para conectar!
+
+3. Configura tu Entorno de Desarrollo
+
+1. Node.js: Asegúrate de tener la versión LTS instalada.
+2. Instala Expo CLI: npm install -g expo-cli
+3. Crea tu proyecto: npx create-expo-app ligas-escalada --template
+4. Navega y ejecuta: cd ligas-escalada y luego npx expo start. Esto abrirá un servidor de desarrollo y un QR.
+5. Instala la app Expo Go en tu teléfono físico (iOS o Android).
+6. Escanea el QR desde Expo Go. ¡Tu app vacía se ejecutará en tu teléfono al instante! La magia de Expo.
