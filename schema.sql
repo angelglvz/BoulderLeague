@@ -31,7 +31,7 @@ CREATE TABLE leagues (
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   reward TEXT,
-  is_private BOOLEAN DEFAULT true,
+  is_private BOOLEAN DEFAULT false,
   max_participants INTEGER, -- null = ilimitado
   access_code TEXT, -- para liguillas privadas
   created_at TIMESTAMPTZ DEFAULT NOW(),
