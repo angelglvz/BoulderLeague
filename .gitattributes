@@ -1,0 +1,15 @@
+# Normalizar saltos de línea al hacer checkout en Windows
+* text=auto eol=lf
+
+# Archivos binarios — no tocar
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+
