@@ -1,11 +1,7 @@
-import { Text, View } from 'react-native';
+import { Redirect } from 'expo-router'
 
-// Placeholder — se sustituirá en la Fase 3 por el Home real
+// Redirige siempre a la pantalla de bienvenida
+// En Fase 2.5 aquí irá la lógica de sesión activa
 export default function Index() {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>🧗 BoulderLeague</Text>
-    </View>
-  );
+  return <Redirect href="/(auth)/welcome" />
 }
-
