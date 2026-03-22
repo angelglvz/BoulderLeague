@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
-    "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "types:gen": "npx supabase gen types typescript --project-id bcmlsdxvfgkxefkplosa --schema public > types/database.types.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",
@@ -32,6 +33,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-native": "^5.0.0",
     "prettier": "^3.8.1",
+    "supabase": "^2.83.0",
     "typescript": "~5.9.2"
   },
   "private": true
