@@ -169,18 +169,38 @@ attempts   (id, user_id, block_id, score, number_of_goes, timestamp, ...)
 
 ### Instalación
 ```bash
-# 1. Instalar Expo CLI
-npm install -g expo-cli
+# 1. Clonar el repositorio
+git clone https://github.com/angelglvz/BoulderLeague.git
+cd BoulderLeague
 
-# 2. Crear el proyecto
-npx create-expo-app boulder-league --template
+# 2. Instalar dependencias
+npm install
 
-# 3. Arrancar el servidor de desarrollo
-cd boulder-league
+# 3. Configurar variables de entorno
+cp .env.example .env.local
+# Edita .env.local y rellena EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY
+
+# 4. Arrancar el servidor de desarrollo
 npx expo start
 ```
 
 Escanea el QR con **Expo Go** y la app se ejecutará en tu móvil al instante.
+
+---
+
+### 🧰 Scripts disponibles
+
+| Comando | Descripción |
+|---|---|
+| `npm start` | Arranca el servidor de desarrollo |
+| `npm run android` | Lanza en emulador/dispositivo Android |
+| `npm run ios` | Lanza en simulador/dispositivo iOS |
+| `npm run lint` | Analiza el código con ESLint |
+| `npm run lint:fix` | Corrige automáticamente los errores de lint |
+| `npm run format` | Formatea el código con Prettier |
+| `npm run types:gen` | ⚡ Regenera los tipos TypeScript desde la BD de Supabase |
+
+> **`npm run types:gen`** — Ejecútalo cada vez que hagas cambios en el schema de Supabase para mantener los tipos sincronizados con la base de datos real. Requiere estar autenticado con `npx supabase login`.
 
 ---
 
