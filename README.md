@@ -253,6 +253,59 @@ npx expo start --offline
 
 ---
 
+## 🧪 Cómo probar la aplicación en local
+
+### Opción A — Navegador web (más rápido para desarrollo)
+
+```bash
+npx expo start --web --offline --clear
+```
+
+Se abrirá automáticamente en `http://localhost:8081`. Puedes usar Chrome con las DevTools abiertas para ver los logs.
+
+**Flujo de prueba recomendado:**
+1. Regístrate con un email de prueba (ej: `demo@test.com`)
+2. Comprueba en Supabase → **Authentication → Users** que el usuario aparece
+3. Comprueba en Supabase → **Table Editor → users** que el trigger insertó la fila
+4. Crea una liguilla desde el Home → botón **"+ Nueva liguilla"**
+5. Rellena todos los campos, selecciona fechas con el calendario y pulsa **"Crear liguilla"**
+6. Verifica que aparece el toast de confirmación y redirige al detalle
+7. Comprueba en Supabase → **Table Editor → leagues** que la liguilla se guardó
+8. Desde otra cuenta, prueba a unirte con el código → botón **"Unirse con código"**
+9. Verifica en Supabase → **Table Editor → league_participants** que hay dos participantes
+
+---
+
+### Opción B — Móvil físico con Expo Go
+
+**Requisitos:**
+- Móvil y ordenador en la **misma red WiFi**
+- App **Expo Go** instalada ([Android](https://play.google.com/store/apps/details?id=host.exp.exponent) / [iOS](https://apps.apple.com/app/expo-go/id982107779))
+- Node.js >= 20.19.4
+
+```bash
+npx expo start --offline
+```
+
+Escanea el QR que aparece en el terminal con la cámara del móvil (iOS) o con la app Expo Go (Android).
+
+> ⚠️ Si el QR no carga, asegúrate de que el firewall de Windows no está bloqueando el puerto 8081. Puedes probar con `npx expo start --tunnel` como alternativa.
+
+---
+
+### Verificar que Supabase está conectado
+
+Una vez dentro de la app, si ves la pantalla Home sin errores en consola, Supabase está correctamente conectado. Si hay un **403 Forbidden**, revisar:
+
+1. Que `.env.local` tiene los valores correctos de `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+2. Que en Supabase SQL Editor se han ejecutado los permisos de schema:
+```sql
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+```
+
+---
+
 ## 🔑 Variables de entorno
 
 Crea el fichero `.env.local` en la raíz con estas variables:
