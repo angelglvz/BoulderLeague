@@ -36,7 +36,7 @@
 - [x] 2.3 Crear pantalla `app/(auth)/register.tsx` — formulario nombre + email + contraseña
 - [x] 2.4 Crear hook `hooks/useSession.ts` — expone `session`, `user` y función `signOut`
 - [x] 2.5 Configurar navegación protegida en `app/_layout.tsx`: redirige a `/welcome` si no hay sesión activa
-- [ ] 2.6 Persistir sesión con `expo-secure-store` para que el usuario no tenga que volver a logarse
+- [x] 2.6 Persistir sesión con `expo-secure-store` para que el usuario no tenga que volver a logarse
 
 ---
 
