@@ -1,9 +1,13 @@
 /**
  * database.types.ts
  *
- * Tipos generados manualmente a partir de schema.sql.
- * Cuando tengas la Supabase CLI instalada puedes regenerarlos con:
- *   npx supabase gen types typescript --project-id bcmlsdxvfgkxefkplosa > types/database.types.ts
+ * Tipos sincronizados manualmente con schema.sql (Fase 1.8).
+ *
+ * Para regenerarlos automáticamente desde Supabase cuando hagas cambios en la BD:
+ *   npm run types:gen
+ *
+ * Requiere estar autenticado en Supabase CLI:
+ *   npx supabase login
  */
 
 export type Difficulty = 'novato' | 'medio' | 'avanzado' | 'experimentado' | 'profesional'
@@ -194,4 +198,3 @@ export type League = Tables<'leagues'>
 export type LeagueParticipant = Tables<'league_participants'>
 export type Block = Tables<'blocks'>
 export type Attempt = Tables<'attempts'>
-
