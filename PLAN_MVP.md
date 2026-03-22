@@ -31,12 +31,12 @@
 
 ## FASE 2 · Autenticación
 
-- [ ] 2.1 Crear pantalla `app/(auth)/welcome.tsx` — splash/bienvenida con botones "Entrar" y "Registrarse"
-- [ ] 2.2 Crear pantalla `app/(auth)/login.tsx` — formulario email + contraseña con manejo de errores
-- [ ] 2.3 Crear pantalla `app/(auth)/register.tsx` — formulario nombre + email + contraseña
-- [ ] 2.4 Crear hook `hooks/useSession.ts` — expone `session`, `user` y función `signOut`
-- [ ] 2.5 Configurar navegación protegida en `app/_layout.tsx`: redirige a `/welcome` si no hay sesión activa
-- [ ] 2.6 Persistir sesión con `expo-secure-store` para que el usuario no tenga que volver a logarse
+- [x] 2.1 Crear pantalla `app/(auth)/welcome.tsx` — splash/bienvenida con botones "Entrar" y "Registrarse"
+- [x] 2.2 Crear pantalla `app/(auth)/login.tsx` — formulario email + contraseña con manejo de errores
+- [x] 2.3 Crear pantalla `app/(auth)/register.tsx` — formulario nombre + email + contraseña
+- [x] 2.4 Crear hook `hooks/useSession.ts` — expone `session`, `user` y función `signOut`
+- [x] 2.5 Configurar navegación protegida en `app/_layout.tsx`: redirige a `/welcome` si no hay sesión activa
+- [x] 2.6 Persistir sesión con `expo-secure-store` para que el usuario no tenga que volver a logarse
 
 ---
 

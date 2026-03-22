@@ -1,15 +1,3 @@
-/**
- * database.types.ts
- *
- * Tipos sincronizados manualmente con schema.sql (Fase 1.8).
- *
- * Para regenerarlos automáticamente desde Supabase cuando hagas cambios en la BD:
- *   npm run types:gen
- *
- * Requiere estar autenticado en Supabase CLI:
- *   npx supabase login
- */
-
 export type Difficulty = 'novato' | 'medio' | 'avanzado' | 'experimentado' | 'profesional'
 
 export interface Database {
@@ -180,8 +168,6 @@ export interface Database {
   }
 }
 
-// ─── Tipos de conveniencia ───────────────────────────────────────────────────
-
 export type Tables<T extends keyof Database['public']['Tables']> =
   Database['public']['Tables'][T]['Row']
 
@@ -191,10 +177,10 @@ export type InsertTables<T extends keyof Database['public']['Tables']> =
 export type UpdateTables<T extends keyof Database['public']['Tables']> =
   Database['public']['Tables'][T]['Update']
 
-// Tipos directos para usar en componentes
 export type User = Tables<'users'>
 export type Gym = Tables<'gyms'>
 export type League = Tables<'leagues'>
 export type LeagueParticipant = Tables<'league_participants'>
 export type Block = Tables<'blocks'>
 export type Attempt = Tables<'attempts'>
+
