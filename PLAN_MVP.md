@@ -11,8 +11,8 @@
 - [x] 0.2 Añadir `.gitignore` adecuado para Expo/Node y hacer el primer commit
 - [x] 0.3 Instalar dependencias base: `expo-router`, `@supabase/supabase-js`, `expo-image-picker`, `expo-secure-store`
 - [x] 0.4 Definir estructura de carpetas: `app/`, `components/`, `hooks/`, `lib/`, `constants/`, `types/`
-- [ ] 0.5 Crear `constants/theme.ts` con paleta de colores, tipografías y tamaños base
-- [ ] 0.6 Configurar ESLint + Prettier con reglas para React Native
+- [x] 0.5 Crear `constants/theme.ts` con paleta de colores, tipografías y tamaños base
+- [x] 0.6 Configurar ESLint + Prettier con reglas para React Native
 
 ---
 
