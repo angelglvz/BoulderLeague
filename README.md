@@ -4,6 +4,27 @@ Aplicación lúdica y social para escalada indoor que permite crear **liguillas 
 
 ---
 
+## 🚦 Estado actual del proyecto (Fase 3 completada)
+
+> **Última actualización:** Marzo 2026 · Rama activa: `feature/fase-3`
+
+### ✅ Fases completadas
+
+| Fase | Descripción |
+|---|---|
+| 0 | Repositorio, estructura de carpetas y entorno base |
+| 1 | Proyecto Supabase: BD, RLS, Auth, Storage, triggers y tipos |
+| 2 | Autenticación completa: welcome, login, registro, sesión persistida |
+| 3 | Liguillas: crear, unirse, listar y ver detalle con código para compartir |
+
+### 🔜 Próxima fase
+
+**Fase 4 · Bloques** — añadir bloques a una liguilla con foto, identificador y dificultad.
+
+Ver detalle completo en [`PLAN_MVP.md`](./PLAN_MVP.md).
+
+---
+
 ## 📋 Descripción del MVP
 
 ### Objetivo
@@ -151,10 +172,51 @@ Expo está construido sobre React Native y es perfecto para un MVP:
 
 ### Esquema de base de datos (Supabase)
 ```sql
-users      (id, email, nombre, ...)
-leagues    (id, name, gym_id, start_date, end_date, reward, is_private, creator_id, ...)
-blocks     (id, league_id, photo_url, identifier, difficulty, ...)
-attempts   (id, user_id, block_id, score, number_of_goes, timestamp, ...)
+users               (id, email, name, created_at)
+leagues             (id, name, creator_id, start_date, end_date, reward, is_private, access_code, max_participants, created_at)
+league_participants (id, league_id, user_id, joined_at)
+blocks              (id, league_id, identifier, difficulty, photo_url, created_at)
+attempts            (id, user_id, block_id, score, number_of_goes, created_at)
+```
+
+---
+
+## 🗂️ Estructura del proyecto
+
+```
+BoulderLeague/
+├── app/
+│   ├── _layout.tsx              # Root layout — navegación protegida
+│   ├── index.tsx                # Redirección inicial
+│   ├── (auth)/
+│   │   ├── _layout.tsx
+│   │   ├── welcome.tsx          # Pantalla de bienvenida
+│   │   ├── login.tsx            # Inicio de sesión
+│   │   └── register.tsx         # Registro de cuenta
+│   └── (app)/
+│       ├── _layout.tsx
+│       ├── index.tsx            # Home — listado de liguillas
+│       └── leagues/
+│           ├── create.tsx       # Crear liguilla
+│           ├── join.tsx         # Unirse con código
+│           └── [id].tsx         # Detalle de liguilla
+├── components/
+│   ├── index.ts
+│   └── LeagueCard.tsx           # Tarjeta de liguilla
+├── constants/
+│   ├── index.ts
+│   └── theme.ts                 # Colores, tipografía, spacing
+├── hooks/
+│   ├── index.ts
+│   └── useSession.ts            # Hook de sesión de usuario
+├── lib/
+│   └── supabase.ts              # Cliente Supabase (web + móvil)
+├── types/
+│   ├── index.ts
+│   └── database.types.ts        # Tipos generados desde Supabase CLI
+├── schema.sql                   # Schema de la BD
+├── PLAN_MVP.md                  # Plan de tareas del MVP
+└── .env.local                   # Variables de entorno (no en Git)
 ```
 
 ---
@@ -163,8 +225,8 @@ attempts   (id, user_id, block_id, score, number_of_goes, timestamp, ...)
 
 ### Requisitos previos
 
-- Node.js LTS
-- Cuenta en [Supabase](https://supabase.com/)
+- Node.js >= 20.19.4 LTS
+- Cuenta en [Supabase](https://supabase.com/) con acceso al proyecto
 - App **Expo Go** en tu móvil ([iOS](https://apps.apple.com/app/expo-go/id982107779) / [Android](https://play.google.com/store/apps/details?id=host.exp.exponent))
 
 ### Instalación
@@ -174,33 +236,86 @@ git clone https://github.com/angelglvz/BoulderLeague.git
 cd BoulderLeague
 
 # 2. Instalar dependencias
-npm install
+npm install --legacy-peer-deps
 
 # 3. Configurar variables de entorno
 cp .env.example .env.local
-# Edita .env.local y rellena EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY
+# Edita .env.local y rellena las variables (ver sección de Variables de entorno)
 
-# 4. Arrancar el servidor de desarrollo
-npx expo start
+# 4. Arrancar en web (recomendado para desarrollo)
+npx expo start --web --offline --clear
+
+# 5. Arrancar en móvil (escanear QR con Expo Go)
+npx expo start --offline
 ```
 
-Escanea el QR con **Expo Go** y la app se ejecutará en tu móvil al instante.
+> ⚠️ Usa siempre `--legacy-peer-deps` en los `npm install` porque hay conflictos de versiones entre paquetes de Expo y ESLint.
 
 ---
 
-### 🧰 Scripts disponibles
+## 🔑 Variables de entorno
+
+Crea el fichero `.env.local` en la raíz con estas variables:
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://bcmlsdxvfgkxefkplosa.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon key del proyecto Supabase>
+```
+
+La **anon key** se encuentra en: Supabase Dashboard → Project Settings → API → `anon public`.
+
+---
+
+## ☁️ Configuración de Supabase
+
+### Proyecto
+- **URL:** `https://bcmlsdxvfgkxefkplosa.supabase.co`
+- **Dashboard:** [supabase.com/dashboard](https://supabase.com/dashboard)
+- Para acceder al proyecto, solicitar acceso al administrador del proyecto.
+
+### Políticas RLS activas
+Las siguientes políticas están configuradas en el proyecto:
+
+| Tabla | Política |
+|---|---|
+| `users` | `SELECT` solo del propio usuario (`auth.uid() = id`) |
+| `leagues` | `SELECT` para cualquier usuario autenticado · `INSERT` solo si `creator_id = auth.uid()` |
+| `league_participants` | `SELECT` para cualquier usuario autenticado · `INSERT` solo si `user_id = auth.uid()` |
+
+> **Permisos de schema:** Se han concedido `GRANT USAGE ON SCHEMA public` y `GRANT ALL ON ALL TABLES` a los roles `anon` y `authenticated`. Sin esto las consultas devuelven 403.
+
+### Trigger activo
+`handle_new_user` — al registrarse un usuario en Auth, inserta automáticamente una fila en `public.users`.
+
+### Storage
+Bucket `block-photos` creado con política de lectura pública (para la Fase 4).
+
+---
+
+## 🧰 Scripts disponibles
 
 | Comando | Descripción |
 |---|---|
-| `npm start` | Arranca el servidor de desarrollo |
-| `npm run android` | Lanza en emulador/dispositivo Android |
-| `npm run ios` | Lanza en simulador/dispositivo iOS |
+| `npx expo start --web --offline --clear` | Arranca en web con caché limpia |
+| `npx expo start --offline` | Arranca para móvil (escanear QR con Expo Go) |
 | `npm run lint` | Analiza el código con ESLint |
 | `npm run lint:fix` | Corrige automáticamente los errores de lint |
 | `npm run format` | Formatea el código con Prettier |
 | `npm run types:gen` | ⚡ Regenera los tipos TypeScript desde la BD de Supabase |
 
-> **`npm run types:gen`** — Ejecútalo cada vez que hagas cambios en el schema de Supabase para mantener los tipos sincronizados con la base de datos real. Requiere estar autenticado con `npx supabase login`.
+> **`npm run types:gen`** — Ejecútalo cada vez que hagas cambios en el schema de Supabase para mantener los tipos sincronizados. Requiere `npx supabase login` previo.
+
+---
+
+## 🌿 Ramas de trabajo
+
+| Rama | Descripción |
+|---|---|
+| `main` | Rama principal — código estable |
+| `feature/fase-1` | Supabase setup (completada, mergeada) |
+| `feature/fase-2` | Autenticación (completada) |
+| `feature/fase-3` | Liguillas (completada) |
+| `feature/fase-4` | Bloques (próxima) |
 
 ---
 
