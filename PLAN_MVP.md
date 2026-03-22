@@ -18,14 +18,14 @@
 
 ## FASE 1 · Supabase: proyecto y base de datos
 
-- [ ] 1.1 Crear proyecto en Supabase y guardar `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `.env.local`
-- [ ] 1.2 Crear `lib/supabase.ts` con el cliente configurado usando las variables de entorno
-- [ ] 1.3 Ejecutar `schema.sql` en el SQL Editor de Supabase (tablas: `users`, `gyms`, `leagues`, `league_participants`, `blocks`, `attempts`)
-- [ ] 1.4 Activar RLS en todas las tablas y añadir política básica: cada usuario solo accede a sus datos
-- [ ] 1.5 Activar Supabase Auth con proveedor **email/contraseña**
-- [ ] 1.6 Crear trigger `handle_new_user` en Supabase: al registrarse, inserta automáticamente en la tabla `users`
-- [ ] 1.7 Crear bucket `block-photos` en Supabase Storage con política de lectura pública
-- [ ] 1.8 Exportar `types/database.types.ts` con los tipos generados desde Supabase CLI (`supabase gen types typescript`)
+- [x] 1.1 Crear proyecto en Supabase y guardar `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `.env.local`
+- [x] 1.2 Crear `lib/supabase.ts` con el cliente configurado usando las variables de entorno
+- [x] 1.3 Ejecutar `schema.sql` en el SQL Editor de Supabase (tablas: `users`, `gyms`, `leagues`, `league_participants`, `blocks`, `attempts`)
+- [x] 1.4 Activar RLS en todas las tablas y añadir política básica: cada usuario solo accede a sus datos
+- [x] 1.5 Activar Supabase Auth con proveedor **email/contraseña**
+- [x] 1.6 Crear trigger `handle_new_user` en Supabase: al registrarse, inserta automáticamente en la tabla `users`
+- [x] 1.7 Crear bucket `block-photos` en Supabase Storage con política de lectura pública
+- [x] 1.8 Exportar `types/database.types.ts` con los tipos generados desde Supabase CLI (`supabase gen types typescript`)
 
 ---
 
