@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
   TextInput, ScrollView, ActivityIndicator, Switch, Animated, Platform,
 } from 'react-native'
-import DateTimePickerModal from 'react-native-modal-datetime-picker'
 import { useRouter } from 'expo-router'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
@@ -30,17 +29,6 @@ function useToast() {
   return { visible, message, opacity, show }
 }
 
-// ── Formateadores ────────────────────────────────────────────────────────────
-function toDisplay(date: Date | null) {
-  if (!date) return ''
-  return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-function toISO(date: Date | null) {
-  if (!date) return ''
-  return date.toISOString().split('T')[0] // YYYY-MM-DD para Supabase
-}
-
 // ── Pantalla ─────────────────────────────────────────────────────────────────
 export default function CreateLeagueScreen() {
   const router = useRouter()
@@ -48,8 +36,6 @@ export default function CreateLeagueScreen() {
   const toast = useToast()
 
   const [name, setName] = useState('')
-  const [startDate, setStartDate] = useState<Date | null>(null)
-  const [endDate, setEndDate] = useState<Date | null>(null)
   const [reward, setReward] = useState('')
   const [maxParticipants, setMaxParticipants] = useState('')
   const [isPrivate, setIsPrivate] = useState(true)
@@ -57,23 +43,9 @@ export default function CreateLeagueScreen() {
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // Control del picker
-  const [pickerTarget, setPickerTarget] = useState<'start' | 'end' | null>(null)
-
-  function openPicker(target: 'start' | 'end') { setPickerTarget(target) }
-  function closePicker() { setPickerTarget(null) }
-  function handlePickerConfirm(date: Date) {
-    if (pickerTarget === 'start') setStartDate(date)
-    else setEndDate(date)
-    closePicker()
-  }
-
   function validate() {
     const e: Record<string, string> = {}
     if (!name.trim()) e.name = 'El nombre es obligatorio'
-    if (!startDate) e.startDate = 'La fecha de inicio es obligatoria'
-    if (!endDate) e.endDate = 'La fecha de fin es obligatoria'
-    else if (startDate && endDate <= startDate) e.endDate = 'La fecha de fin debe ser posterior al inicio'
     if (isPrivate && !accessCode.trim()) e.accessCode = 'El código de acceso es obligatorio'
     if (maxParticipants && Number.isNaN(Number(maxParticipants))) e.maxParticipants = 'Debe ser un número'
     setErrors(e)
@@ -89,8 +61,8 @@ export default function CreateLeagueScreen() {
       .insert({
         name: name.trim(),
         creator_id: user!.id,
-        start_date: toISO(startDate),
-        end_date: toISO(endDate),
+        start_date: null,
+        end_date: null,
         reward: reward.trim() || null,
         is_private: isPrivate,
         access_code: isPrivate ? accessCode.trim().toUpperCase() : null,
@@ -126,6 +98,7 @@ export default function CreateLeagueScreen() {
             <Text style={styles.backText}>← Volver</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Nueva liguilla</Text>
+          <Text style={styles.subtitle}>Añade los bloques y después inicia la liguilla desde el detalle</Text>
         </View>
 
         <View style={styles.form}>
@@ -135,26 +108,6 @@ export default function CreateLeagueScreen() {
               placeholder="Nombre de la liguilla"
               placeholderTextColor={colors.textMuted}
               value={name} onChangeText={setName}
-            />
-          </Field>
-
-          {/* Date pickers */}
-          <Field label="Fecha de inicio" error={errors.startDate}>
-            <DateField
-              value={startDate}
-              onChange={setStartDate}
-              placeholder="DD / MM / AAAA"
-              onPress={() => openPicker('start')}
-            />
-          </Field>
-
-          <Field label="Fecha de fin" error={errors.endDate}>
-            <DateField
-              value={endDate}
-              onChange={setEndDate}
-              placeholder="DD / MM / AAAA"
-              onPress={() => openPicker('end')}
-              minDate={startDate ?? undefined}
             />
           </Field>
 
@@ -214,23 +167,6 @@ export default function CreateLeagueScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Date picker modal — solo móvil */}
-      {Platform.OS !== 'web' && (
-        <DateTimePickerModal
-          isVisible={pickerTarget !== null}
-          mode="date"
-          minimumDate={pickerTarget === 'end' && startDate ? startDate : new Date()}
-          date={
-            pickerTarget === 'end' && endDate ? endDate :
-            pickerTarget === 'start' && startDate ? startDate :
-            new Date()
-          }
-          onConfirm={handlePickerConfirm}
-          onCancel={closePicker}
-          locale="es_ES"
-        />
-      )}
-
       {/* Toast */}
       {toast.visible && (
         <Animated.View style={[styles.toast, { opacity: toast.opacity }]}>
@@ -238,55 +174,6 @@ export default function CreateLeagueScreen() {
         </Animated.View>
       )}
     </SafeAreaView>
-  )
-}
-
-// ── DateField multiplataforma ────────────────────────────────────────────────
-function DateField({ value, onChange, placeholder, onPress, minDate }: {
-  value: Date | null
-  onChange: (d: Date) => void
-  placeholder: string
-  onPress: () => void
-  minDate?: Date
-}) {
-  if (Platform.OS === 'web') {
-    // En web usamos el input nativo HTML type="date"
-    const minISO = minDate ? toISO(minDate) : toISO(new Date())
-    return (
-      <View style={styles.dateButton}>
-        <Text style={styles.calendarIcon}>📅</Text>
-        {/* @ts-ignore — input HTML nativo en web */}
-        <input
-          type="date"
-          value={value ? toISO(value) : ''}
-          min={minISO}
-          onChange={(e: any) => {
-            if (e.target.value) onChange(new Date(e.target.value + 'T12:00:00'))
-          }}
-          style={{
-            flex: 1,
-            background: 'transparent',
-            border: 'none',
-            outline: 'none',
-            color: value ? colors.textPrimary : colors.textMuted,
-            fontSize: typography.size.md,
-            fontWeight: value ? '500' : '400',
-            cursor: 'pointer',
-            width: '100%',
-          }}
-        />
-      </View>
-    )
-  }
-
-  // En móvil usamos el botón que abre el modal
-  return (
-    <TouchableOpacity style={styles.dateButton} onPress={onPress} activeOpacity={0.8}>
-      <Text style={value ? styles.dateText : styles.datePlaceholder}>
-        {value ? toDisplay(value) : placeholder}
-      </Text>
-      <Text style={styles.calendarIcon}>📅</Text>
-    </TouchableOpacity>
   )
 }
 
@@ -318,13 +205,10 @@ const styles = StyleSheet.create({
   header: { marginBottom: spacing.xl },
   backText: { color: colors.textSecondary, fontSize: typography.size.md, marginBottom: spacing.md },
   title: { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary },
+  subtitle: { fontSize: typography.size.sm, color: colors.textMuted, marginTop: spacing.xs },
   form: { gap: spacing.md, marginBottom: spacing.xl },
   input: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, fontSize: typography.size.md, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border },
   inputError: { borderColor: colors.error },
-  dateButton: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dateText: { fontSize: typography.size.md, color: colors.textPrimary, fontWeight: typography.weight.medium },
-  datePlaceholder: { fontSize: typography.size.md, color: colors.textMuted },
-  calendarIcon: { fontSize: 18 },
   label: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
   hint: { fontSize: typography.size.xs, color: colors.textMuted },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },

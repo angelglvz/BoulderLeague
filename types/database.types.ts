@@ -53,8 +53,8 @@ export interface Database {
           name: string
           gym_id: string | null
           creator_id: string
-          start_date: string
-          end_date: string
+          start_date: string | null
+          end_date: string | null
           reward: string | null
           is_private: boolean
           max_participants: number | null
@@ -67,8 +67,8 @@ export interface Database {
           name: string
           gym_id?: string | null
           creator_id: string
-          start_date: string
-          end_date: string
+          start_date?: string | null
+          end_date?: string | null
           reward?: string | null
           is_private?: boolean
           max_participants?: number | null
@@ -80,8 +80,8 @@ export interface Database {
           id?: string
           name?: string
           gym_id?: string | null
-          start_date?: string
-          end_date?: string
+          start_date?: string | null
+          end_date?: string | null
           reward?: string | null
           is_private?: boolean
           max_participants?: number | null
