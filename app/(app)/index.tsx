@@ -1,60 +1,87 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
-import { useSession } from '../../hooks'
-import { colors, typography, spacing, radius } from '../../constants'
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
+import { useSession } from '../../hooks'
 import { supabase } from '../../lib/supabase'
+import { colors, typography, spacing, radius } from '../../constants'
+import { LeagueCard } from '../../components/LeagueCard'
+import type { League } from '../../types'
 
-// Placeholder — se sustituirá en la Fase 3 por el Home real
 export default function HomeScreen() {
   const { user, signOut } = useSession()
-  const [userName, setUserName] = useState<string | null>(null)
-  const [dbStatus, setDbStatus] = useState<'loading' | 'ok' | 'error'>('loading')
+  const router = useRouter()
+  const [leagues, setLeagues] = useState<League[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!user) return
-
-    async function fetchUser() {
-      const { data, error } = await supabase
-        .from('users')
-        .select('name')
-        .eq('id', user!.id)
-        .single()
-
-      if (error) {
-        setDbStatus('error')
-      } else {
-        setUserName(data.name)
-        setDbStatus('ok')
-      }
-    }
-
-    fetchUser()
+    fetchLeagues()
   }, [user])
+
+  async function fetchLeagues() {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('league_participants')
+      .select('league_id, leagues(*)')
+      .eq('user_id', user!.id)
+
+    if (!error && data) {
+      const leagueList = data
+        .map((item: any) => item.leagues)
+        .filter(Boolean) as League[]
+      setLeagues(leagueList)
+    }
+    setLoading(false)
+  }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>🧗 BoulderLeague</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>🧗 BoulderLeague</Text>
+        <TouchableOpacity onPress={signOut}>
+          <Text style={styles.signOut}>Salir</Text>
+        </TouchableOpacity>
+      </View>
 
-      {dbStatus === 'loading' && <ActivityIndicator color={colors.primary} />}
+      {/* Acciones */}
+      <View style={styles.actions}>
+        <TouchableOpacity
+          style={styles.buttonPrimary}
+          onPress={() => router.push('/(app)/leagues/create')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.buttonPrimaryText}>+ Nueva liguilla</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.buttonSecondary}
+          onPress={() => router.push('/(app)/leagues/join')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.buttonSecondaryText}>Unirse con código</Text>
+        </TouchableOpacity>
+      </View>
 
-      {dbStatus === 'ok' && (
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>✅ Supabase conectado</Text>
-          <Text style={styles.cardValue}>Hola, {userName}</Text>
-          <Text style={styles.cardSub}>{user?.email}</Text>
+      {/* Listado */}
+      <Text style={styles.sectionTitle}>Mis liguillas</Text>
+
+      {loading ? (
+        <ActivityIndicator color={colors.primary} style={styles.loader} />
+      ) : leagues.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyEmoji}>🏔️</Text>
+          <Text style={styles.emptyText}>Aún no participas en ninguna liguilla</Text>
+          <Text style={styles.emptySubtext}>Crea una nueva o únete con un código</Text>
         </View>
+      ) : (
+        <FlatList
+          data={leagues}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => <LeagueCard league={item} />}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+        />
       )}
-
-      {dbStatus === 'error' && (
-        <View style={[styles.card, styles.cardError]}>
-          <Text style={styles.cardLabel}>❌ Error al leer la BD</Text>
-          <Text style={styles.cardSub}>Revisa las políticas RLS en Supabase</Text>
-        </View>
-      )}
-
-      <TouchableOpacity style={styles.button} onPress={signOut}>
-        <Text style={styles.buttonText}>Cerrar sesión</Text>
-      </TouchableOpacity>
     </View>
   )
 }
@@ -63,54 +90,88 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    paddingTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.lg,
-    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
   title: {
-    fontSize: typography.size['2xl'],
+    fontSize: typography.size.xl,
     fontWeight: typography.weight.extrabold,
     color: colors.primary,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    gap: spacing.xs,
-    width: '100%',
-  },
-  cardError: {
-    borderColor: colors.error,
-  },
-  cardLabel: {
-    fontSize: typography.size.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.weight.semibold,
-  },
-  cardValue: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
-    color: colors.primary,
-  },
-  cardSub: {
+  signOut: {
     fontSize: typography.size.sm,
     color: colors.textMuted,
   },
-  button: {
-    backgroundColor: colors.surfaceAlt,
+  actions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  buttonPrimary: {
+    flex: 1,
+    backgroundColor: colors.primary,
     borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  buttonPrimaryText: {
+    color: colors.textInverse,
+    fontWeight: typography.weight.bold,
+    fontSize: typography.size.md,
+  },
+  buttonSecondary: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
   },
-  buttonText: {
-    color: colors.error,
+  buttonSecondaryText: {
+    color: colors.textSecondary,
+    fontWeight: typography.weight.medium,
     fontSize: typography.size.md,
+  },
+  sectionTitle: {
+    fontSize: typography.size.sm,
     fontWeight: typography.weight.semibold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
+  loader: {
+    marginTop: spacing.xl,
+  },
+  empty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  emptyEmoji: {
+    fontSize: 48,
+  },
+  emptyText: {
+    fontSize: typography.size.md,
+    color: colors.textSecondary,
+    fontWeight: typography.weight.medium,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: typography.size.sm,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  list: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xl,
   },
 })
