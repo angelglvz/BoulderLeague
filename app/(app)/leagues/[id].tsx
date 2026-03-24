@@ -1,17 +1,17 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, Clipboard, FlatList,
   Modal, Platform, ScrollView,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import DateTimePickerModal from 'react-native-modal-datetime-picker'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
 import { colors, typography, spacing, radius } from '../../../constants'
 import { BlockCard } from '../../../components'
-import type { League, Block } from '../../../types'
+import type { League, Block, Attempt } from '../../../types'
 
 // ── Helpers de fecha ─────────────────────────────────────────────────────────
 function toISO(d: Date) { return d.toISOString().split('T')[0] }
@@ -73,7 +73,9 @@ export default function LeagueDetailScreen() {
   const [league, setLeague] = useState<League | null>(null)
   const [blocks, setBlocks] = useState<Block[]>([])
   const [participantCount, setParticipantCount] = useState(0)
+  const [userAttempts, setUserAttempts] = useState<Record<string, Attempt>>({})
   const [loading, setLoading] = useState(true)
+  const blockIdsRef = useRef<string[]>([])
 
   // Modal de iniciar liguilla
   const [showStartModal, setShowStartModal] = useState(false)
@@ -85,6 +87,30 @@ export default function LeagueDetailScreen() {
 
   useEffect(() => { if (id) fetchData() }, [id])
 
+  useFocusEffect(
+    useCallback(() => {
+      if (id) fetchUserAttempts()
+    }, [id, user?.id])
+  )
+
+  async function fetchUserAttempts(blockIds?: string[]) {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const uid = sessionData.session?.user?.id
+    if (!uid) return
+    const ids = blockIds ?? blockIdsRef.current
+    if (ids.length === 0) return
+    const { data } = await supabase
+      .from('attempts')
+      .select('*')
+      .eq('user_id', uid)
+      .in('block_id', ids)
+    if (data) {
+      const map: Record<string, Attempt> = {}
+      for (const a of data) map[a.block_id] = a
+      setUserAttempts(map)
+    }
+  }
+
   async function fetchData() {
     setLoading(true)
     const [{ data: leagueData }, { data: blocksData }, { count }] = await Promise.all([
@@ -93,7 +119,12 @@ export default function LeagueDetailScreen() {
       supabase.from('league_participants').select('*', { count: 'exact', head: true }).eq('league_id', id),
     ])
     if (leagueData) setLeague(leagueData)
-    if (blocksData) setBlocks(blocksData)
+    if (blocksData) {
+      setBlocks(blocksData)
+      const blockIds = blocksData.map((b: Block) => b.id)
+      blockIdsRef.current = blockIds
+      await fetchUserAttempts(blockIds)
+    }
     if (count !== null) setParticipantCount(count)
     setLoading(false)
   }
@@ -332,6 +363,7 @@ export default function LeagueDetailScreen() {
             <View style={styles.blockCardWrapper}>
               <BlockCard
                 block={item}
+                attempt={userAttempts[item.id] ?? null}
                 onPress={() => router.push(`/(app)/blocks/${item.id}`)}
               />
             </View>

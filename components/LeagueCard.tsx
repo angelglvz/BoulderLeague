@@ -11,21 +11,24 @@ export function LeagueCard({ league }: LeagueCardProps) {
   const router = useRouter()
 
   const now = new Date()
-  const start = new Date(league.start_date)
-  const end = new Date(league.end_date)
+  const start = league.start_date ? new Date(league.start_date) : null
+  const end = league.end_date ? new Date(league.end_date) : null
 
-  let status: 'upcoming' | 'active' | 'finished'
-  if (now < start) status = 'upcoming'
+  let status: 'pending' | 'upcoming' | 'active' | 'finished'
+  if (!start || !end) status = 'pending'
+  else if (now < start) status = 'upcoming'
   else if (now > end) status = 'finished'
   else status = 'active'
 
   const statusLabel = {
+    pending: '⏳ Sin iniciar',
     upcoming: '🕐 Próximamente',
     active: '🟢 Activa',
     finished: '🏁 Finalizada',
   }[status]
 
   const statusColor = {
+    pending: colors.textMuted,
     upcoming: colors.warning,
     active: colors.success,
     finished: colors.textMuted,
@@ -51,7 +54,9 @@ export function LeagueCard({ league }: LeagueCardProps) {
 
       <View style={styles.meta}>
         <Text style={styles.dates}>
-          📅 {formatDate(league.start_date)} → {formatDate(league.end_date)}
+          {start && end
+            ? `📅 ${formatDate(league.start_date!)} → ${formatDate(league.end_date!)}`
+            : '📅 Fechas pendientes de asignar'}
         </Text>
         {league.reward ? (
           <Text style={styles.reward} numberOfLines={1}>🏆 {league.reward}</Text>

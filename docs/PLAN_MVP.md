@@ -7,7 +7,7 @@
 
 ## 📍 Punto de partida para el siguiente agente
 
-> **Estado:** Fase 4.1 completada · **Rama:** `feature/fase4` · **Siguiente:** Fase 5 (Registro de resultados)
+> **Estado:** Fase 5 completada · **Rama:** `feature/fase4` · **Siguiente:** Fase 6 (Ranking)
 
 ### Lo que ya funciona
 - Auth completo (registro, login, sesión persistida, logout)
@@ -158,13 +158,14 @@ Después regenerar tipos: `npm run types:gen`
 
 ---
 
-## FASE 5 · Registro de resultados y puntuación
+## FASE 5 · Registro de resultados y puntuación ✅
 
-- [ ] 5.1 Crear `lib/scoring.ts` con funciones puras: `calcBaseScore(goes)` y `calcBonus(difficulty)`
-- [ ] 5.2 Crear pantalla `app/(app)/blocks/[id]/log-attempt.tsx` — selector de pegues (flash, 2, 3, 4, 5, +5)
-- [ ] 5.3 Calcular `score = calcBaseScore + calcBonus` antes de guardar
-- [ ] 5.4 Guardar/actualizar intento con **upsert** en `attempts` (clave única: `user_id + block_id`)
-- [ ] 5.5 Mostrar indicador visual en `BlockCard` con el resultado del usuario (flash 🔥, pegues, sin intentar)
+- [x] 5.1 Crear `lib/scoring.ts` con funciones puras: `calcBaseScore(goes)` y `calcBonus(difficulty)`
+- [x] 5.2 Crear pantalla `app/(app)/blocks/[id]/log-attempt.tsx` — selector de pegues (flash, 2, 3, 4, 5, +5, sin encadenar)
+- [x] 5.3 Calcular `score = calcBaseScore × calcBonus` antes de guardar (preview en tiempo real)
+- [x] 5.4 Guardar/actualizar intento con **upsert** en `attempts` (clave única: `user_id + block_id`)
+- [x] 5.5 Mostrar indicador visual en `BlockCard` con el resultado del usuario (flash ⚡, pegues, sin intentar)
+- [x] **Bugfix:** `LeagueCard` mostraba "Finalizada" en liguillas sin fechas (`start_date = null`) — ahora muestra "⏳ Sin iniciar"
 
 ---
 

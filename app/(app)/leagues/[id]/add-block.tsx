@@ -19,11 +19,13 @@ import { colors, typography, spacing, radius } from '../../../../constants'
 import type { Difficulty } from '../../../../types'
 
 const DIFFICULTIES: { label: string; value: Difficulty }[] = [
-  { label: 'Novato',        value: 'novato' },
-  { label: 'Medio',         value: 'medio' },
-  { label: 'Avanzado',      value: 'avanzado' },
-  { label: 'Experimentado', value: 'experimentado' },
-  { label: 'Profesional',   value: 'profesional' },
+  { label: '⚪ Principiante', value: 'principiante' },
+  { label: '🟢 Novato',       value: 'novato' },
+  { label: '🔵 Medio',        value: 'medio' },
+  { label: '🟡 Avanzado',     value: 'avanzado' },
+  { label: '🟠 Experimentado',value: 'experimentado' },
+  { label: '🔴 Élite',        value: 'elite' },
+  { label: '🟣 Profesional',  value: 'profesional' },
 ]
 
 export default function AddBlockScreen() {
