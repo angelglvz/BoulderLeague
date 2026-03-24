@@ -25,12 +25,15 @@ const DIFFICULTY_LABEL: Record<string, string> = {
   profesional:   '🟣 Profesional',
 }
 
+type LeagueStatus = 'not_started' | 'in_progress' | 'finished'
+
 export default function BlockDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const [block, setBlock] = useState<Block | null>(null)
   const [attempt, setAttempt] = useState<Attempt | null>(null)
   const [loading, setLoading] = useState(true)
+  const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>('not_started')
 
   useEffect(() => {
     if (id) fetchBlock()
@@ -66,6 +69,26 @@ export default function BlockDetailScreen() {
     if (blockData) {
       setBlock(blockData)
       await fetchAttempt()
+
+      // Estado de la liga
+      const { data: leagueData } = await supabase
+        .from('leagues')
+        .select('start_date, end_date')
+        .eq('id', blockData.league_id)
+        .single()
+
+      if (leagueData) {
+        const now = new Date()
+        if (!leagueData.start_date) {
+          setLeagueStatus('not_started')
+        } else if (now < new Date(leagueData.start_date)) {
+          setLeagueStatus('not_started')
+        } else if (leagueData.end_date && now > new Date(leagueData.end_date)) {
+          setLeagueStatus('finished')
+        } else {
+          setLeagueStatus('in_progress')
+        }
+      }
     }
     setLoading(false)
   }
@@ -96,7 +119,10 @@ export default function BlockDetailScreen() {
         />
 
         <View style={styles.content}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.replace(`/(app)/leagues/${block.league_id}`)}
+            style={styles.backButton}
+          >
             <Text style={styles.backText}>← Volver</Text>
           </TouchableOpacity>
 
@@ -146,15 +172,27 @@ export default function BlockDetailScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.logButton, attempt != null && styles.logButtonDisabled]}
+            style={[
+              styles.logButton,
+              (attempt != null || leagueStatus !== 'in_progress') && styles.logButtonDisabled,
+            ]}
             onPress={() => {
-              if (attempt != null) return
+              if (attempt != null || leagueStatus !== 'in_progress') return
               router.push(`/(app)/blocks/${block.id}/log-attempt`)
             }}
-            activeOpacity={attempt != null ? 1 : 0.8}
+            activeOpacity={(attempt != null || leagueStatus !== 'in_progress') ? 1 : 0.8}
           >
-            <Text style={[styles.logButtonText, attempt != null && styles.logButtonTextDisabled]}>
-              {attempt != null ? '🔒 Resultado ya registrado' : '✍️ Registrar resultado'}
+            <Text style={[
+              styles.logButtonText,
+              (attempt != null || leagueStatus !== 'in_progress') && styles.logButtonTextDisabled,
+            ]}>
+              {attempt != null
+                ? '🔒 Resultado ya registrado'
+                : leagueStatus === 'not_started'
+                ? '⏳ La liguilla aún no ha comenzado'
+                : leagueStatus === 'finished'
+                ? '🏁 La liguilla ha finalizado'
+                : '✍️ Registrar resultado'}
             </Text>
           </TouchableOpacity>
         </View>

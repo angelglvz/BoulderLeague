@@ -40,6 +40,7 @@ export default function CreateLeagueScreen() {
   const [maxParticipants, setMaxParticipants] = useState('')
   const [isPrivate, setIsPrivate] = useState(true)
   const [accessCode, setAccessCode] = useState('')
+  const [rankingVisibleDuring, setRankingVisibleDuring] = useState(true)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -67,6 +68,7 @@ export default function CreateLeagueScreen() {
         is_private: isPrivate,
         access_code: isPrivate ? accessCode.trim().toUpperCase() : null,
         max_participants: maxParticipants ? Number(maxParticipants) : null,
+        ranking_visible_during: rankingVisibleDuring,
       })
       .select()
       .single()
@@ -137,6 +139,22 @@ export default function CreateLeagueScreen() {
             </View>
             <Switch
               value={isPrivate} onValueChange={setIsPrivate}
+              trackColor={{ false: colors.surfaceAlt, true: colors.primary }}
+              thumbColor={colors.textInverse}
+            />
+          </View>
+
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, marginRight: spacing.md }}>
+              <Text style={styles.label}>Ranking visible durante la liguilla</Text>
+              <Text style={styles.hint}>
+                {rankingVisibleDuring
+                  ? 'Todos los participantes verán el ranking en tiempo real'
+                  : 'El ranking se revelará solo al terminar la liguilla'}
+              </Text>
+            </View>
+            <Switch
+              value={rankingVisibleDuring} onValueChange={setRankingVisibleDuring}
               trackColor={{ false: colors.surfaceAlt, true: colors.primary }}
               thumbColor={colors.textInverse}
             />

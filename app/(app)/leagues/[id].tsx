@@ -14,10 +14,37 @@ import { BlockCard } from '../../../components'
 import type { League, Block, Attempt } from '../../../types'
 
 // ── Helpers de fecha ─────────────────────────────────────────────────────────
-function toISO(d: Date) { return d.toISOString().split('T')[0] }
+
+/** Convierte un Date a string ISO completo para guardar en BD (timestamptz) */
+function toISO(d: Date) { return d.toISOString() }
+
+/** Muestra fecha + hora en formato legible */
 function toDisplay(s: string | null) {
   if (!s) return null
-  return new Date(s + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+  const d = new Date(s)
+  const fecha = d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+  const hora  = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+  return `${fecha} a las ${hora}`
+}
+
+/** Snap de minutos al cuarto de hora más cercano (0, 15, 30, 45) */
+function snapToQuarter(d: Date): Date {
+  const result = new Date(d)
+  const mins = d.getMinutes()
+  const snapped = Math.round(mins / 15) * 15
+  result.setMinutes(snapped === 60 ? 0 : snapped, 0, 0)
+  if (snapped === 60) result.setHours(result.getHours() + 1)
+  return result
+}
+
+function pad2(n: number) { return String(n).padStart(2, '0') }
+
+// Opciones de hora: solo cuartos de hora → "00:00", "00:15", ..., "23:45"
+const HOUR_OPTIONS: string[] = []
+for (let h = 0; h < 24; h++) {
+  for (const m of [0, 15, 30, 45]) {
+    HOUR_OPTIONS.push(`${pad2(h)}:${pad2(m)}`)
+  }
 }
 
 // ── Componente DateField multiplataforma ─────────────────────────────────────
@@ -28,32 +55,82 @@ function DateField({ value, onChange, placeholder, onPress, minDate }: {
   onPress: () => void
   minDate?: Date
 }) {
-  const displayVal = value
-    ? value.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : ''
-
   if (Platform.OS === 'web') {
-    const minISO = minDate ? toISO(minDate) : undefined
+    // Fecha como "YYYY-MM-DD"
+    const dateStr = value
+      ? `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`
+      : ''
+
+    // Hora snapeada como "HH:MM"
+    const snapped = value ? snapToQuarter(value) : null
+    const timeStr = snapped ? `${pad2(snapped.getHours())}:${pad2(snapped.getMinutes())}` : '08:00'
+
+    const minDateStr = minDate
+      ? `${minDate.getFullYear()}-${pad2(minDate.getMonth() + 1)}-${pad2(minDate.getDate())}`
+      : undefined
+
+    function applyDate(newDateStr: string, currentTime: string) {
+      if (!newDateStr) return
+      const [y, mo, d] = newDateStr.split('-').map(Number)
+      const [h, mi]    = currentTime.split(':').map(Number)
+      onChange(new Date(y, mo - 1, d, h, mi, 0, 0))
+    }
+
+    function applyTime(newTime: string, currentDateStr: string) {
+      const [h, mi] = newTime.split(':').map(Number)
+      if (currentDateStr) {
+        const [y, mo, d] = currentDateStr.split('-').map(Number)
+        onChange(new Date(y, mo - 1, d, h, mi, 0, 0))
+      } else {
+        const base = new Date()
+        onChange(new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, mi, 0, 0))
+      }
+    }
+
     return (
-      <View style={modalStyles.dateButton}>
-        <Text style={modalStyles.dateIcon}>📅</Text>
+      <View style={[modalStyles.dateButton, { gap: 8 }]}>
         {/* @ts-ignore */}
         <input
           type="date"
-          value={value ? toISO(value) : ''}
-          min={minISO}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-            if (e.target.value) onChange(new Date(e.target.value + 'T12:00:00'))
-          }}
+          value={dateStr}
+          min={minDateStr}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            applyDate(e.target.value, timeStr)
+          }
           style={{
             flex: 1, background: 'transparent', border: 'none', outline: 'none',
             color: value ? colors.textPrimary : colors.textMuted,
-            fontSize: typography.size.md, cursor: 'pointer', width: '100%',
+            fontSize: typography.size.md, cursor: 'pointer',
           }}
         />
+        <Text style={{ color: colors.textMuted }}>🕐</Text>
+        {/* @ts-ignore */}
+        <select
+          value={timeStr}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+            applyTime(e.target.value, dateStr)
+          }
+          style={{
+            background: colors.surface, border: 'none', outline: 'none',
+            color: colors.textPrimary,
+            fontSize: typography.size.md, cursor: 'pointer',
+            borderRadius: 4, padding: '2px 4px',
+          }}
+        >
+          {HOUR_OPTIONS.map(t => (
+            // @ts-ignore
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
       </View>
     )
   }
+
+  // ── Móvil ──
+  const displayVal = value
+    ? `${pad2(value.getDate())}/${pad2(value.getMonth() + 1)}/${value.getFullYear()} ` +
+      `${pad2(snapToQuarter(value).getHours())}:${pad2(snapToQuarter(value).getMinutes())}`
+    : ''
   return (
     <TouchableOpacity style={modalStyles.dateButton} onPress={onPress} activeOpacity={0.8}>
       <Text style={value ? modalStyles.dateText : modalStyles.datePlaceholder}>
@@ -137,32 +214,44 @@ export default function LeagueDetailScreen() {
 
   // ── Modal iniciar liguilla ───────────────────────────────────────────────
   function openStartModal() {
-    setStartDate(league?.start_date ? new Date(league.start_date + 'T12:00:00') : null)
-    setEndDate(league?.end_date ? new Date(league.end_date + 'T12:00:00') : null)
+    setStartDate(league?.start_date ? new Date(league.start_date) : null)
+    setEndDate(league?.end_date ? new Date(league.end_date) : null)
     setDateErrors({})
     setShowStartModal(true)
   }
 
   async function handleSaveDates() {
     const e: { start?: string; end?: string } = {}
-    if (!startDate) e.start = 'La fecha de inicio es obligatoria'
-    if (!endDate) e.end = 'La fecha de fin es obligatoria'
+    if (!startDate) e.start = 'La fecha y hora de inicio son obligatorias'
+    if (!endDate) e.end = 'La fecha y hora de fin son obligatorias'
     else if (startDate && endDate <= startDate) e.end = 'Debe ser posterior al inicio'
     setDateErrors(e)
     if (Object.keys(e).length > 0) return
 
+    // Snap a cuartos de hora antes de guardar
+    const finalStart = snapToQuarter(startDate!)
+    const finalEnd   = snapToQuarter(endDate!)
+
     setSavingDates(true)
     const { error } = await supabase
       .from('leagues')
-      .update({ start_date: toISO(startDate!), end_date: toISO(endDate!) })
+      .update({ start_date: toISO(finalStart), end_date: toISO(finalEnd) })
       .eq('id', id)
     setSavingDates(false)
 
     if (error) {
-      Alert.alert('Error', 'No se pudo guardar las fechas')
+      console.error('Error al guardar fechas:', error)
+      Alert.alert(
+        'Error al guardar',
+        `No se pudieron guardar las fechas.\n\n${error.message ?? error.code ?? 'Error desconocido'}\n\nAsegúrate de haber ejecutado la migración de BD (start_date/end_date a TIMESTAMPTZ).`
+      )
       return
     }
-    setLeague(prev => prev ? { ...prev, start_date: toISO(startDate!), end_date: toISO(endDate!) } : prev)
+
+    setLeague(prev => prev
+      ? { ...prev, start_date: toISO(finalStart), end_date: toISO(finalEnd) }
+      : prev
+    )
     setShowStartModal(false)
   }
 
@@ -170,8 +259,8 @@ export default function LeagueDetailScreen() {
   function getLeagueStatus(): { label: string; color: string } | null {
     if (!league?.start_date || !league?.end_date) return null
     const now = new Date()
-    const start = new Date(league.start_date + 'T00:00:00')
-    const end = new Date(league.end_date + 'T23:59:59')
+    const start = new Date(league.start_date)
+    const end = new Date(league.end_date)
     if (now < start) return { label: '⏳ Pendiente de inicio', color: colors.textMuted }
     if (now > end)   return { label: '🏁 Finalizada', color: colors.error }
     return { label: '🟢 En curso', color: colors.success ?? colors.primary }
@@ -180,8 +269,11 @@ export default function LeagueDetailScreen() {
   const isCreator = user?.id === league?.creator_id
   const leagueStatus = getLeagueStatus()
 
-  // La liga "ha iniciado" cuando ya tiene fecha de inicio y esa fecha ya pasó
-  const isStarted = !!league?.start_date && new Date() >= new Date(league.start_date + 'T00:00:00')
+  // La liga ya tiene fechas asignadas (aunque sean futuras) → ocultar botón "Iniciar"
+  const hasDates = !!league?.start_date && !!league?.end_date
+
+  // La liga ya ha comenzado realmente → bloquear edición de bloques (añadir/borrar/reordenar)
+  const isInProgress = hasDates && new Date() >= new Date(league!.start_date!)
 
   // ── Borrar bloque ────────────────────────────────────────────────────────
   const handleDeleteBlock = useCallback((block: Block) => {
@@ -259,7 +351,7 @@ export default function LeagueDetailScreen() {
           <View>
             {/* Header */}
             <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.back()}>
+              <TouchableOpacity onPress={() => router.replace('/(app)')}>
                 <Text style={styles.backText}>← Volver</Text>
               </TouchableOpacity>
               <View style={styles.titleRow}>
@@ -289,10 +381,24 @@ export default function LeagueDetailScreen() {
                 value={`${participantCount}${league.max_participants ? ` / ${league.max_participants}` : ''}`}
               />
               {league.reward && <InfoRow label="🏆 Recompensa" value={league.reward} />}
+              {/* Badge de visibilidad del ranking */}
+              {isCreator ? (
+                <InfoRow
+                  label="👁 Ranking"
+                  value={league.ranking_visible_during ? 'Visible para todos durante la liguilla' : 'Solo visible al terminar'}
+                  valueColor={league.ranking_visible_during ? (colors.success ?? colors.primary) : colors.textMuted}
+                />
+              ) : !league.ranking_visible_during ? (
+                <InfoRow
+                  label="👁 Ranking"
+                  value="Se revelará al terminar la liguilla 🔒"
+                  valueColor={colors.textMuted}
+                />
+              ) : null}
             </View>
 
-            {/* Botón iniciar (solo creador y solo si la liga NO ha comenzado aún) */}
-            {isCreator && !isStarted && (() => {
+            {/* Botón iniciar/editar fechas — solo creador, solo si la liga NO tiene fechas aún */}
+            {isCreator && !hasDates && (() => {
               const MIN_BLOCKS = 5
               const remaining = MIN_BLOCKS - blocks.length
               const canStart = blocks.length >= MIN_BLOCKS
@@ -322,6 +428,19 @@ export default function LeagueDetailScreen() {
               )
             })()}
 
+            {/* Botón editar fechas — solo creador, tiene fechas pero aún no ha comenzado */}
+            {isCreator && hasDates && !isInProgress && (
+              <View style={styles.startSection}>
+                <TouchableOpacity
+                  style={styles.startButton}
+                  onPress={openStartModal}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.startButtonText}>✏️ Editar fechas</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Compartir */}
             {league.access_code && (
               <TouchableOpacity style={styles.shareButton} onPress={handleShare} activeOpacity={0.8}>
@@ -333,7 +452,7 @@ export default function LeagueDetailScreen() {
             {/* Bloques header */}
             <View style={styles.blocksHeader}>
               <Text style={styles.sectionTitle}>Bloques ({blocks.length})</Text>
-              {isCreator && !isStarted && (
+              {isCreator && !isInProgress && (
                 <TouchableOpacity
                   style={styles.addBlockButton}
                   onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
@@ -346,8 +465,8 @@ export default function LeagueDetailScreen() {
         }
         renderItem={({ item, index }) => (
           <View style={styles.blockRow}>
-            {/* Handles de reordenación — solo si la liga no ha iniciado */}
-            {isCreator && !isStarted && (
+            {/* Handles de reordenación — solo si la liga no ha comenzado */}
+            {isCreator && !isInProgress && (
               <View style={styles.orderHandles}>
                 <TouchableOpacity
                   onPress={() => handleMoveBlock(item.id, 'up')}
@@ -375,8 +494,8 @@ export default function LeagueDetailScreen() {
               />
             </View>
 
-            {/* Botón borrar — solo si la liga no ha iniciado */}
-            {isCreator && !isStarted && (
+            {/* Botón borrar — solo si la liga no ha comenzado */}
+            {isCreator && !isInProgress && (
               <TouchableOpacity
                 style={styles.deleteHandle}
                 onPress={() => handleDeleteBlock(item)}
@@ -412,20 +531,20 @@ export default function LeagueDetailScreen() {
               Define el período de la liguilla. Los participantes podrán registrar resultados durante estas fechas.
             </Text>
 
-            <Text style={modalStyles.label}>Fecha de inicio</Text>
+            <Text style={modalStyles.label}>Fecha y hora de inicio</Text>
             <DateField
               value={startDate}
               onChange={setStartDate}
-              placeholder="DD / MM / AAAA"
+              placeholder="DD/MM/AAAA HH:MM"
               onPress={() => setPickerTarget('start')}
             />
             {dateErrors.start && <Text style={modalStyles.error}>{dateErrors.start}</Text>}
 
-            <Text style={[modalStyles.label, { marginTop: spacing.md }]}>Fecha de fin</Text>
+            <Text style={[modalStyles.label, { marginTop: spacing.md }]}>Fecha y hora de fin</Text>
             <DateField
               value={endDate}
               onChange={setEndDate}
-              placeholder="DD / MM / AAAA"
+              placeholder="DD/MM/AAAA HH:MM"
               onPress={() => setPickerTarget('end')}
               minDate={startDate ?? undefined}
             />
@@ -457,7 +576,7 @@ export default function LeagueDetailScreen() {
       {Platform.OS !== 'web' && (
         <DateTimePickerModal
           isVisible={pickerTarget !== null}
-          mode="date"
+          mode="datetime"
           minimumDate={pickerTarget === 'end' && startDate ? startDate : new Date()}
           date={
             pickerTarget === 'end' && endDate ? endDate :

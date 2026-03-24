@@ -28,12 +28,13 @@ CREATE TABLE leagues (
   name TEXT NOT NULL,
   gym_id UUID REFERENCES gyms(id) ON DELETE SET NULL,
   creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
+  start_date TIMESTAMPTZ,          -- nullable: se asigna al iniciar la liguilla
+  end_date TIMESTAMPTZ,            -- nullable: se asigna al iniciar la liguilla
   reward TEXT,
   is_private BOOLEAN DEFAULT false,
-  max_participants INTEGER, -- null = ilimitado
-  access_code TEXT, -- para liguillas privadas
+  max_participants INTEGER,        -- null = ilimitado
+  access_code TEXT,                -- para liguillas privadas
+  ranking_visible_during BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
