@@ -18,19 +18,26 @@
 - Navegación protegida: redirige a `/welcome` si no hay sesión
 - Formulario `add-block.tsx` — foto (galería/cámara), identificador y dificultad
 - Subida de fotos a Supabase Storage (bucket `block-photos`)
-- Pantalla de detalle de bloque `blocks/[id].tsx` con botón "Registrar resultado"
-- **Botón "▶ Iniciar liguilla"** (solo creador): habilitado con ≥5 bloques, abre modal con date pickers multiplataforma
-- **Reordenación de bloques** con handles ▲/▼
-- **Borrado de bloques** con Alert de confirmación (borra foto de Storage + fila en BD)
+- Pantalla de detalle de bloque `blocks/[id]/index.tsx` con foto, datos e indicador de resultado propio
+- **Botón "▶ Iniciar liguilla"** (solo creador): habilitado con ≥5 bloques, oculto una vez iniciada
+- **Reordenación y borrado de bloques** (solo disponibles antes de iniciar la liguilla)
+- **Registro de resultados** `blocks/[id]/log-attempt.tsx` — selector de pegues, guardado único por bloque
+- **`BlockCard`** con indicador visual de resultado: ✓ pegues / ⚡ Flash / sin resultado / ✅ completados marcados con tick
+- **Ranking** `leagues/[id]/ranking.tsx` — tabla de participantes ordenada por puntuación con desempate
+- **`lib/scoring.ts`** — lógica pura de puntuación con multiplicadores por dificultad y 7 niveles
+- **Bloqueo de edición** al iniciar: una vez `start_date` ha llegado, se ocultan handles ▲/▼, botón 🗑️ y botón "+ Añadir"
+- **`LeagueCard`** corregida: muestra "⏳ Sin iniciar" cuando `start_date = null` (antes mostraba "Finalizada")
+- **Dificultades ampliadas** a 7 niveles: principiante, novato, medio, avanzado, experimentado, élite, profesional
 
-### Pantallas pendientes con botones ya visibles
-- **`✍️ Registrar resultado`** en `app/(app)/blocks/[id].tsx` → navega a `/(app)/blocks/[id]/log-attempt` *(no existe aún)*
-- **`🏆 Ranking`** en `app/(app)/leagues/[id].tsx` → navega a `/(app)/leagues/[id]/ranking` *(no existe aún)*
+### Pantalla de ranking (botón ya funcional)
+- **`🏆 Ranking`** en `app/(app)/leagues/[id].tsx` → navega a `/(app)/leagues/[id]/ranking` ✅ implementado en Fase 5
+- Pendiente para Fase 6: lógica de visibilidad controlada por `ranking_visible_during`
 
 ### Advertencias conocidas en web (no bloquean)
 - `props.pointerEvents is deprecated` — viene de `react-native-web`, ignorar
 - `shadow* props are deprecated` — viene del `theme.ts`, ignorar en web
 - `useNativeDriver not supported` — ya está corregido con `Platform.OS !== 'web'`
+- `Unexpected text node: // @ts-ignore` — viene del `DateField` en `create.tsx` y `leagues/[id].tsx`, ignorar en web
 
 ### Patrones establecidos en el proyecto
 - **Date picker multiplataforma:** en web usar `<input type="date">` nativo; en móvil usar `DateTimePickerModal`
@@ -161,11 +168,67 @@ Después regenerar tipos: `npm run types:gen`
 ## FASE 5 · Registro de resultados y puntuación ✅
 
 - [x] 5.1 Crear `lib/scoring.ts` con funciones puras: `calcBaseScore(goes)` y `calcBonus(difficulty)`
-- [x] 5.2 Crear pantalla `app/(app)/blocks/[id]/log-attempt.tsx` — selector de pegues (flash, 2, 3, 4, 5, +5, sin encadenar)
-- [x] 5.3 Calcular `score = calcBaseScore × calcBonus` antes de guardar (preview en tiempo real)
-- [x] 5.4 Guardar/actualizar intento con **upsert** en `attempts` (clave única: `user_id + block_id`)
-- [x] 5.5 Mostrar indicador visual en `BlockCard` con el resultado del usuario (flash ⚡, pegues, sin intentar)
-- [x] **Bugfix:** `LeagueCard` mostraba "Finalizada" en liguillas sin fechas (`start_date = null`) — ahora muestra "⏳ Sin iniciar"
+  - 7 niveles de dificultad: principiante (×0.8), novato (×1.0), medio (×1.2), avanzado (×1.5), experimentado (×1.8), élite (×2.2), profesional (×2.5)
+  - Puntuación base: Flash=100, 2p=80, 3p=65, 4p=55, 5p=45, +5p=35, sin encadenar=0
+  - Exporta: `GOES_LABELS`, `calcScore()`, `calcBaseScore()`, `calcBonus()`, `goesFromDB()`, `goesToDB()`, `resultEmoji()`
+- [x] 5.2 Crear pantalla `app/(app)/blocks/[id]/log-attempt.tsx`
+  - Selector visual de pegues con 7 opciones: Sin encadenar / Flash / 2-5 pegues / +5 pegues
+  - **Solo se puede registrar un resultado por bloque** — una vez guardado queda bloqueado (`🔒 Resultado ya registrado`)
+  - No muestra puntuación al usuario (se calcula internamente, se revela solo en ranking)
+  - Al guardar navega de vuelta a la pantalla anterior con `router.back()`
+- [x] 5.3 Mostrar indicador visual de resultado en `BlockCard`
+  - ✅ Franja lateral de color + badge con pegues para bloques completados
+  - ⏳ Franja gris para bloques intentados sin encadenar
+  - Sin franja para bloques sin resultado
+  - Tick ✓ visible en la card cuando el bloque ya tiene resultado registrado
+- [x] 5.4 Guardar intento en `attempts` (INSERT único, no upsert — política RLS de 1 por usuario/bloque)
+- [x] 5.5 Crear pantalla `app/(app)/leagues/[id]/ranking.tsx`
+  - Tabla de participantes ordenada por puntuación total descendente
+  - Desempate por: nº bloques encadenados → nº flashes → suma dificultades → menor nº pegues
+  - Actualización en tiempo real con Supabase Realtime (`attempts` channel)
+  - Podio visual con medallas 🥇🥈🥉
+
+### Correcciones y mejoras incluidas en Fase 5
+
+- [x] **Bugfix `LeagueCard`:** mostraba "Finalizada" en liguillas sin fechas — corregido a "⏳ Sin iniciar"
+- [x] **Bloqueo de edición al iniciar liguilla:** `isStarted` oculta botón "+ Añadir", handles ▲/▼ y botón 🗑️ una vez `start_date ≤ today`
+- [x] **`resultEmoji()` corregido:** eliminado el `Nx` (ej: `4×`) que se mostraba junto al label de pegues → ahora devuelve `✓` para cualquier número de pegues
+- [x] **7 dificultades en `add-block.tsx`** en lugar de 5: se añaden `principiante` y `élite`
+- [x] **`DIFFICULTY_LABEL`** actualizado en `blocks/[id]/index.tsx` para los 7 niveles
+- [x] **RLS `attempts`:** políticas de INSERT/SELECT correctamente configuradas en Supabase
+- [x] **Ruta duplicada resuelta:** eliminado conflicto entre `blocks/[id].tsx` (vacío) y `blocks/[id]/index.tsx`
+
+### SQL ejecutado en Supabase para Fase 5
+
+```sql
+-- Tabla attempts
+CREATE TABLE IF NOT EXISTS public.attempts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  block_id    UUID NOT NULL REFERENCES public.blocks(id) ON DELETE CASCADE,
+  number_of_goes INTEGER NOT NULL DEFAULT 0,
+  score       INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(user_id, block_id)
+);
+
+-- RLS attempts
+ALTER TABLE public.attempts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view attempts in their leagues"
+  ON public.attempts FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.blocks b
+      JOIN public.league_participants lp ON lp.league_id = b.league_id
+      WHERE b.id = attempts.block_id AND lp.user_id = auth.uid()
+    )
+  );
+CREATE POLICY "Users can insert their own attempt"
+  ON public.attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON public.attempts TO authenticated;
+```
+
+Después regenerar tipos: `npm run types:gen`
 
 ---
 

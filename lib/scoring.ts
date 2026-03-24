@@ -93,7 +93,6 @@ export function goesToDB(goes: Goes): number {
 export function resultEmoji(numberOfGoes: number): string {
   if (numberOfGoes === 0) return '—'
   if (numberOfGoes === 1) return '⚡'
-  if (numberOfGoes <= 5) return `${numberOfGoes}×`
-  return '+5×'
+  return '✓'
 }
 

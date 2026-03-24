@@ -180,6 +180,9 @@ export default function LeagueDetailScreen() {
   const isCreator = user?.id === league?.creator_id
   const leagueStatus = getLeagueStatus()
 
+  // La liga "ha iniciado" cuando ya tiene fecha de inicio y esa fecha ya pasó
+  const isStarted = !!league?.start_date && new Date() >= new Date(league.start_date + 'T00:00:00')
+
   // ── Borrar bloque ────────────────────────────────────────────────────────
   const handleDeleteBlock = useCallback((block: Block) => {
     Alert.alert(
@@ -288,8 +291,8 @@ export default function LeagueDetailScreen() {
               {league.reward && <InfoRow label="🏆 Recompensa" value={league.reward} />}
             </View>
 
-            {/* Botón iniciar (solo creador) */}
-            {isCreator && (() => {
+            {/* Botón iniciar (solo creador y solo si la liga NO ha comenzado aún) */}
+            {isCreator && !isStarted && (() => {
               const MIN_BLOCKS = 5
               const remaining = MIN_BLOCKS - blocks.length
               const canStart = blocks.length >= MIN_BLOCKS
@@ -330,34 +333,38 @@ export default function LeagueDetailScreen() {
             {/* Bloques header */}
             <View style={styles.blocksHeader}>
               <Text style={styles.sectionTitle}>Bloques ({blocks.length})</Text>
-              <TouchableOpacity
-                style={styles.addBlockButton}
-                onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
-              >
-                <Text style={styles.addBlockText}>+ Añadir</Text>
-              </TouchableOpacity>
+              {isCreator && !isStarted && (
+                <TouchableOpacity
+                  style={styles.addBlockButton}
+                  onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
+                >
+                  <Text style={styles.addBlockText}>+ Añadir</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         }
         renderItem={({ item, index }) => (
           <View style={styles.blockRow}>
-            {/* Handles de reordenación */}
-            <View style={styles.orderHandles}>
-              <TouchableOpacity
-                onPress={() => handleMoveBlock(item.id, 'up')}
-                disabled={index === 0}
-                style={[styles.handle, index === 0 && styles.handleDisabled]}
-              >
-                <Text style={styles.handleText}>▲</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => handleMoveBlock(item.id, 'down')}
-                disabled={index === blocks.length - 1}
-                style={[styles.handle, index === blocks.length - 1 && styles.handleDisabled]}
-              >
-                <Text style={styles.handleText}>▼</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Handles de reordenación — solo si la liga no ha iniciado */}
+            {isCreator && !isStarted && (
+              <View style={styles.orderHandles}>
+                <TouchableOpacity
+                  onPress={() => handleMoveBlock(item.id, 'up')}
+                  disabled={index === 0}
+                  style={[styles.handle, index === 0 && styles.handleDisabled]}
+                >
+                  <Text style={styles.handleText}>▲</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleMoveBlock(item.id, 'down')}
+                  disabled={index === blocks.length - 1}
+                  style={[styles.handle, index === blocks.length - 1 && styles.handleDisabled]}
+                >
+                  <Text style={styles.handleText}>▼</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Card */}
             <View style={styles.blockCardWrapper}>
@@ -368,13 +375,15 @@ export default function LeagueDetailScreen() {
               />
             </View>
 
-            {/* Botón borrar */}
-            <TouchableOpacity
-              style={styles.deleteHandle}
-              onPress={() => handleDeleteBlock(item)}
-            >
-              <Text style={styles.deleteText}>🗑️</Text>
-            </TouchableOpacity>
+            {/* Botón borrar — solo si la liga no ha iniciado */}
+            {isCreator && !isStarted && (
+              <TouchableOpacity
+                style={styles.deleteHandle}
+                onPress={() => handleDeleteBlock(item)}
+              >
+                <Text style={styles.deleteText}>🗑️</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
         ListEmptyComponent={
