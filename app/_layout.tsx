@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import 'react-native-reanimated'
+import { useEffect } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { colors } from '../constants';

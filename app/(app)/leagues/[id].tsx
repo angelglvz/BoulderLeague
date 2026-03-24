@@ -1,16 +1,18 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, Clipboard, FlatList,
-  Modal, Platform, ScrollView,
+  ActivityIndicator, Alert, Clipboard,
+  Modal, Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import DateTimePickerModal from 'react-native-modal-datetime-picker'
+import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
 import { colors, typography, spacing, radius } from '../../../constants'
-import { BlockCard } from '../../../components'
+import { BlockCard, Icon } from '../../../components'
 import type { League, Block, Attempt } from '../../../types'
 
 // ── Helpers de fecha ─────────────────────────────────────────────────────────
@@ -89,7 +91,7 @@ function DateField({ value, onChange, placeholder, onPress, minDate }: {
 
     return (
       <View style={[modalStyles.dateButton, { gap: 8 }]}>
-        {/* @ts-ignore */}
+        {/* @ts-ignore — input HTML nativo en web */}
         <input
           type="date"
           value={dateStr}
@@ -99,27 +101,31 @@ function DateField({ value, onChange, placeholder, onPress, minDate }: {
           }
           style={{
             flex: 1, background: 'transparent', border: 'none', outline: 'none',
-            color: value ? colors.textPrimary : colors.textMuted,
+            color: '#FFFFFF',
+            colorScheme: 'dark',
             fontSize: typography.size.md, cursor: 'pointer',
           }}
         />
-        <Text style={{ color: colors.textMuted }}>🕐</Text>
-        {/* @ts-ignore */}
+        <Icon name="time-outline" size={18} color={colors.textSecondary} />
+        {/* @ts-ignore — select HTML nativo en web */}
         <select
           value={timeStr}
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
             applyTime(e.target.value, dateStr)
           }
           style={{
-            background: colors.surface, border: 'none', outline: 'none',
-            color: colors.textPrimary,
+            background: colors.surfaceAlt,
+            border: `1px solid ${colors.border}`,
+            outline: 'none',
+            color: '#FFFFFF',
+            colorScheme: 'dark',
             fontSize: typography.size.md, cursor: 'pointer',
-            borderRadius: 4, padding: '2px 4px',
+            borderRadius: 6, padding: '4px 8px',
           }}
         >
           {HOUR_OPTIONS.map(t => (
             // @ts-ignore
-            <option key={t} value={t}>{t}</option>
+            <option key={t} value={t} style={{ background: colors.surfaceAlt, color: '#FFFFFF' }}>{t}</option>
           ))}
         </select>
       </View>
@@ -310,18 +316,14 @@ export default function LeagueDetailScreen() {
     )
   }, [])
 
-  // ── Mover bloque (reordenar) ─────────────────────────────────────────────
-  const handleMoveBlock = useCallback((blockId: string, direction: 'up' | 'down') => {
-    setBlocks(prev => {
-      const idx = prev.findIndex(b => b.id === blockId)
-      if (idx === -1) return prev
-      const newIdx = direction === 'up' ? idx - 1 : idx + 1
-      if (newIdx < 0 || newIdx >= prev.length) return prev
-
-      const next = [...prev]
-      ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
-      return next
-    })
+  // ── Drag & drop — guardar nuevo orden en BD ──────────────────────────────
+  const handleDragEnd = useCallback(async ({ data }: { data: Block[] }) => {
+    setBlocks(data)
+    // Persistir posiciones en BD
+    const updates = data.map((b, i) =>
+      supabase.from('blocks').update({ position: i }).eq('id', b.id)
+    )
+    await Promise.all(updates)
   }, [])
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -342,8 +344,9 @@ export default function LeagueDetailScreen() {
   }
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={styles.container}>
-      <FlatList
+      <DraggableFlatList
         data={blocks}
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
@@ -351,8 +354,9 @@ export default function LeagueDetailScreen() {
           <View>
             {/* Header */}
             <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.replace('/(app)')}>
-                <Text style={styles.backText}>← Volver</Text>
+              <TouchableOpacity onPress={() => router.replace('/(app)')} style={styles.backButton}>
+                <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+                <Text style={styles.backText}>Volver</Text>
               </TouchableOpacity>
               <View style={styles.titleRow}>
                 <Text style={styles.title} numberOfLines={2}>{league.name}</Text>
@@ -360,7 +364,8 @@ export default function LeagueDetailScreen() {
                   style={styles.rankingButton}
                   onPress={() => router.push(`/(app)/leagues/${league.id}/ranking`)}
                 >
-                  <Text style={styles.rankingButtonText}>🏆 Ranking</Text>
+                  <Icon name="trophy-outline" size={16} color={colors.textInverse} style={{ marginRight: 4 }} />
+                  <Text style={styles.rankingButtonText}>Ranking</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -420,8 +425,14 @@ export default function LeagueDetailScreen() {
                     onPress={canStart ? openStartModal : undefined}
                     activeOpacity={canStart ? 0.8 : 1}
                   >
+                    <Icon
+                      name="play-circle-outline"
+                      size={18}
+                      color={canStart ? colors.textInverse : colors.textMuted}
+                      style={{ marginRight: 6 }}
+                    />
                     <Text style={[styles.startButtonText, !canStart && styles.startButtonTextDisabled]}>
-                      {league.start_date ? '✏️ Editar fechas' : '▶ Iniciar liguilla'}
+                      Iniciar liguilla
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -436,7 +447,8 @@ export default function LeagueDetailScreen() {
                   onPress={openStartModal}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.startButtonText}>✏️ Editar fechas</Text>
+                  <Icon name="create-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
+                  <Text style={styles.startButtonText}>Editar fechas</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -445,7 +457,10 @@ export default function LeagueDetailScreen() {
             {league.access_code && (
               <TouchableOpacity style={styles.shareButton} onPress={handleShare} activeOpacity={0.8}>
                 <Text style={styles.shareCode}>{league.access_code}</Text>
-                <Text style={styles.shareLabel}>Toca para copiar el código 📋</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Icon name="copy-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.shareLabel}>Toca para copiar el código</Text>
+                </View>
               </TouchableOpacity>
             )}
 
@@ -457,57 +472,52 @@ export default function LeagueDetailScreen() {
                   style={styles.addBlockButton}
                   onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
                 >
-                  <Text style={styles.addBlockText}>+ Añadir</Text>
+                  <Icon name="add-circle-outline" size={18} color={colors.primary} style={{ marginRight: 4 }} />
+                  <Text style={styles.addBlockText}>Añadir</Text>
                 </TouchableOpacity>
               )}
             </View>
           </View>
         }
-        renderItem={({ item, index }) => (
-          <View style={styles.blockRow}>
-            {/* Handles de reordenación — solo si la liga no ha comenzado */}
-            {isCreator && !isInProgress && (
-              <View style={styles.orderHandles}>
+        renderItem={({ item, drag, isActive }: RenderItemParams<Block>) => (
+          <ScaleDecorator>
+            <View style={[styles.blockRow, isActive && styles.blockRowDragging]}>
+              {/* Drag handle — solo si la liga no ha comenzado */}
+              {isCreator && !isInProgress && (
                 <TouchableOpacity
-                  onPress={() => handleMoveBlock(item.id, 'up')}
-                  disabled={index === 0}
-                  style={[styles.handle, index === 0 && styles.handleDisabled]}
+                  style={styles.dragHandle}
+                  onLongPress={drag}
+                  delayLongPress={100}
                 >
-                  <Text style={styles.handleText}>▲</Text>
+                  <Icon name="reorder-three-outline" size={22} color={colors.textMuted} />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleMoveBlock(item.id, 'down')}
-                  disabled={index === blocks.length - 1}
-                  style={[styles.handle, index === blocks.length - 1 && styles.handleDisabled]}
-                >
-                  <Text style={styles.handleText}>▼</Text>
-                </TouchableOpacity>
+              )}
+
+              {/* Card */}
+              <View style={styles.blockCardWrapper}>
+                <BlockCard
+                  block={item}
+                  attempt={userAttempts[item.id] ?? null}
+                  onPress={() => router.push(`/(app)/blocks/${item.id}`)}
+                />
               </View>
-            )}
 
-            {/* Card */}
-            <View style={styles.blockCardWrapper}>
-              <BlockCard
-                block={item}
-                attempt={userAttempts[item.id] ?? null}
-                onPress={() => router.push(`/(app)/blocks/${item.id}`)}
-              />
+              {/* Botón borrar — solo si la liga no ha comenzado */}
+              {isCreator && !isInProgress && (
+                <TouchableOpacity
+                  style={styles.deleteHandle}
+                  onPress={() => handleDeleteBlock(item)}
+                >
+                  <Icon name="trash-outline" size={20} color={colors.error} />
+                </TouchableOpacity>
+              )}
             </View>
-
-            {/* Botón borrar — solo si la liga no ha comenzado */}
-            {isCreator && !isInProgress && (
-              <TouchableOpacity
-                style={styles.deleteHandle}
-                onPress={() => handleDeleteBlock(item)}
-              >
-                <Text style={styles.deleteText}>🗑️</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          </ScaleDecorator>
         )}
+        onDragEnd={isCreator && !isInProgress ? handleDragEnd : undefined}
         ListEmptyComponent={
           <View style={styles.emptyBlocks}>
-            <Text style={styles.emptyEmoji}>🧱</Text>
+            <Icon name="grid-outline" size={48} color={colors.textMuted} />
             <Text style={styles.emptyText}>Aún no hay bloques</Text>
             <Text style={styles.emptySubtext}>Añade el primer bloque de la liguilla</Text>
           </View>
@@ -525,7 +535,7 @@ export default function LeagueDetailScreen() {
         <View style={modalStyles.overlay}>
           <View style={modalStyles.card}>
             <Text style={modalStyles.title}>
-              {league.start_date ? 'Editar fechas' : '▶ Iniciar liguilla'}
+              {league.start_date ? 'Editar fechas' : 'Iniciar liguilla'}
             </Text>
             <Text style={modalStyles.subtitle}>
               Define el período de la liguilla. Los participantes podrán registrar resultados durante estas fechas.
@@ -593,6 +603,7 @@ export default function LeagueDetailScreen() {
         />
       )}
     </SafeAreaView>
+    </GestureHandlerRootView>
   )
 }
 
@@ -613,44 +624,41 @@ const infoStyles = StyleSheet.create({
 })
 
 const styles = StyleSheet.create({
-  container:          { flex: 1, backgroundColor: colors.background },
-  centered:           { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
-  content:            { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
-  header:             { paddingTop: spacing.xl, marginBottom: spacing.md },
-  backText:           { color: colors.textSecondary, fontSize: typography.size.md, marginBottom: spacing.md },
-  titleRow:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
-  title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary, flex: 1 },
-  rankingButton:      { backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border },
-  rankingButtonText:  { fontSize: typography.size.sm, color: colors.textSecondary, fontWeight: typography.weight.semibold },
-  infoCard:           { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: spacing.sm, marginBottom: spacing.md },
-  startSection:          { marginBottom: spacing.md, gap: spacing.xs },
-  startHintRow:          { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.surface, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border },
-  startHintEmoji:        { fontSize: 16 },
-  startHintText:         { fontSize: typography.size.sm, color: colors.textSecondary, flex: 1 },
-  startButton:           { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: 'center' },
-  startButtonDisabled:   { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
-  startButtonText:       { color: colors.textInverse, fontWeight: typography.weight.bold, fontSize: typography.size.md },
+  container:            { flex: 1, backgroundColor: colors.background },
+  centered:             { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  content:              { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
+  header:               { paddingTop: spacing.xl, marginBottom: spacing.md },
+  backButton:           { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.md },
+  backText:             { color: colors.textSecondary, fontSize: typography.size.md },
+  titleRow:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
+  title:                { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary, flex: 1 },
+  rankingButton:        { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  rankingButtonText:    { fontSize: typography.size.sm, color: colors.textInverse, fontWeight: typography.weight.bold },
+  infoCard:             { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: spacing.sm, marginBottom: spacing.md },
+  startSection:         { marginBottom: spacing.md, gap: spacing.xs },
+  startHintRow:         { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.surface, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border },
+  startHintEmoji:       { fontSize: 16 },
+  startHintText:        { fontSize: typography.size.sm, color: colors.textSecondary, flex: 1 },
+  startButton:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.sm },
+  startButtonDisabled:  { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
+  startButtonText:      { color: colors.textInverse, fontWeight: typography.weight.bold, fontSize: typography.size.md },
   startButtonTextDisabled: { color: colors.textMuted },
-  shareButton:        { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.primary, alignItems: 'center', gap: spacing.xs, marginBottom: spacing.lg },
-  shareCode:          { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.primary, letterSpacing: 4 },
-  shareLabel:         { fontSize: typography.size.sm, color: colors.textMuted },
-  blocksHeader:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  sectionTitle:       { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  addBlockButton:     { backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
-  addBlockText:       { color: colors.textInverse, fontWeight: typography.weight.bold, fontSize: typography.size.sm },
-  blockRow:           { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
-  orderHandles:       { flexDirection: 'column', gap: 2 },
-  handle:             { padding: spacing.xs, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', width: 28, height: 28 },
-  handleDisabled:     { opacity: 0.25 },
-  handleText:         { fontSize: 10, color: colors.textSecondary },
-  blockCardWrapper:   { flex: 1 },
-  deleteHandle:       { padding: spacing.xs, alignItems: 'center', justifyContent: 'center', width: 36, height: 36 },
-  deleteText:         { fontSize: 18 },
-  emptyBlocks:        { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
-  emptyEmoji:         { fontSize: 40 },
-  emptyText:          { fontSize: typography.size.md, color: colors.textSecondary, fontWeight: typography.weight.medium },
-  emptySubtext:       { fontSize: typography.size.sm, color: colors.textMuted },
-  errorText:          { color: colors.error, fontSize: typography.size.md },
+  shareButton:          { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.primary, alignItems: 'center', gap: spacing.xs, marginBottom: spacing.lg },
+  shareCode:            { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.primary, letterSpacing: 4 },
+  shareLabel:           { fontSize: typography.size.sm, color: colors.textMuted },
+  blocksHeader:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  sectionTitle:         { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  addBlockButton:       { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.primary, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  addBlockText:         { color: colors.primary, fontWeight: typography.weight.bold, fontSize: typography.size.sm },
+  blockRow:             { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
+  blockRowDragging:     { opacity: 0.85, backgroundColor: colors.surfaceAlt, borderRadius: radius.md },
+  dragHandle:           { padding: spacing.xs, alignItems: 'center', justifyContent: 'center', width: 32, height: 48 },
+  blockCardWrapper:     { flex: 1 },
+  deleteHandle:         { padding: spacing.xs, alignItems: 'center', justifyContent: 'center', width: 36, height: 48 },
+  emptyBlocks:          { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
+  emptyText:            { fontSize: typography.size.md, color: colors.textSecondary, fontWeight: typography.weight.medium },
+  emptySubtext:         { fontSize: typography.size.sm, color: colors.textMuted },
+  errorText:            { color: colors.error, fontSize: typography.size.md },
 })
 
 const modalStyles = StyleSheet.create({

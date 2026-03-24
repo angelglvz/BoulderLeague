@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import {
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
+  View, Text, StyleSheet, TouchableOpacity,
   TextInput, ScrollView, ActivityIndicator, Switch, Animated, Platform,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
 import { colors, typography, spacing, radius, shadows } from '../../../constants'
+import { Icon } from '../../../components'
 
 const nativeDriver = Platform.OS !== 'web'
 
@@ -93,11 +95,15 @@ export default function CreateLeagueScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.replace('/(app)')}>
-            <Text style={styles.backText}>← Volver</Text>
+          <TouchableOpacity onPress={() => router.replace('/(app)')} style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color={colors.textSecondary} />
+            <Text style={styles.backText}>Volver</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Nueva liguilla</Text>
           <Text style={styles.subtitle}>Añade los bloques y después inicia la liguilla desde el detalle</Text>
@@ -219,20 +225,22 @@ const fieldStyles = StyleSheet.create({
 })
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
-  header: { marginBottom: spacing.xl },
-  backText: { color: colors.textSecondary, fontSize: typography.size.md, marginBottom: spacing.md },
-  title: { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary },
-  subtitle: { fontSize: typography.size.sm, color: colors.textMuted, marginTop: spacing.xs },
-  form: { gap: spacing.md, marginBottom: spacing.xl },
-  input: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, fontSize: typography.size.md, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border },
-  inputError: { borderColor: colors.error },
-  label: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  hint: { fontSize: typography.size.xs, color: colors.textMuted },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
-  buttonPrimary: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.xl },
-  buttonDisabled: { opacity: 0.6 },
-  buttonPrimaryText: { color: colors.textInverse, fontSize: typography.size.lg, fontWeight: typography.weight.bold },
-  toast: { position: 'absolute', bottom: spacing.xl, left: spacing.lg, right: spacing.lg, backgroundColor: colors.surface, borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: colors.primary, ...shadows.glow },
-  toastText: { color: colors.textPrimary, fontSize: typography.size.md, fontWeight: typography.weight.semibold },
+  container:          { flex: 1, backgroundColor: colors.background },
+  scroll:             { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xl },
+  header:             { marginBottom: spacing.xl },
+  backButton:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.lg },
+  backText:           { color: colors.textSecondary, fontSize: typography.size.md },
+  title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary },
+  subtitle:           { fontSize: typography.size.sm, color: colors.textMuted, marginTop: spacing.xs },
+  form:               { gap: spacing.md, marginBottom: spacing.xl },
+  input:              { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, fontSize: typography.size.md, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border },
+  inputError:         { borderColor: colors.error },
+  label:              { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  hint:               { fontSize: typography.size.xs, color: colors.textMuted },
+  switchRow:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
+  buttonPrimary:      { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.xl },
+  buttonDisabled:     { opacity: 0.6 },
+  buttonPrimaryText:  { color: colors.textInverse, fontSize: typography.size.lg, fontWeight: typography.weight.bold },
+  toast:              { position: 'absolute', bottom: spacing.xl, left: spacing.lg, right: spacing.lg, backgroundColor: colors.surface, borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: colors.primary, ...shadows.glow },
+  toastText:          { color: colors.textPrimary, fontSize: typography.size.md, fontWeight: typography.weight.semibold },
 })

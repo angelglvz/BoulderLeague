@@ -7,9 +7,61 @@
 
 ## 📍 Punto de partida para el siguiente agente
 
-> **Estado:** Fase 6 completada · **Rama:** `feature/fase-6` · **Siguiente:** Fase 7 (Pulido visual y UX)
+> **Estado:** Fase 7 en progreso · **Rama:** `feature/fase-7` · **Siguiente:** Continuar Fase 7 (7.1.3 en adelante)
 
-### Lo que ya funciona
+---
+
+### ⚠️ PROBLEMA ABIERTO — resolver primero mañana
+
+**El bundle web falla al cargar** por dependencias de `react-native-draggable-flatlist` que requiere `react-native-reanimated` (v3.x) y `react-native-gesture-handler`:
+
+```
+Unable to resolve "react-native-gesture-handler" from "app/(app)/leagues/[id].tsx"
+```
+
+**Lo que ya se hizo:**
+- `npm install react-native-reanimated@~3.17.4 react-native-gesture-handler react-native-draggable-flatlist@^4.0.1 --legacy-peer-deps`
+- Creado `babel.config.js` con el plugin `react-native-reanimated/plugin`
+- Añadido `import 'react-native-reanimated'` en `app/_layout.tsx`
+
+**Pendiente de verificar:** que el bundle web compile correctamente tras limpiar caché (`npx expo start --web --clear`). Si sigue fallando, considerar **alternativa sin drag & drop** (reemplazar `DraggableFlatList` por `FlatList` normal con botones ▲/▼) para no bloquear el avance.
+
+---
+
+### También pendiente de la sesión de hoy
+
+- **Márgenes incorrectos** en varias pantallas que usaban `SafeAreaView` de `react-native` en lugar de `react-native-safe-area-context` con padding en contenedor interno:
+  - ✅ `leagues/create.tsx` — corregido
+  - ✅ `leagues/join.tsx` — corregido
+  - ❌ `(auth)/login.tsx` — **pendiente** (importa `SafeAreaView` de `react-native` + padding en container)
+  - ❌ `(auth)/register.tsx` — **pendiente**
+  - ❌ `(auth)/welcome.tsx` — **pendiente**
+  - ❌ `blocks/[id]/log-attempt.tsx` — **pendiente**
+  - ✅ `leagues/[id].tsx` — ya usaba `react-native-safe-area-context`
+  - ✅ `leagues/[id]/add-block.tsx` — ya usaba `react-native-safe-area-context`
+  - ✅ `leagues/[id]/ranking.tsx` — ya usaba `react-native-safe-area-context`
+
+**Patrón correcto a aplicar en las que faltan:**
+```tsx
+// ❌ Incorrecto
+import { SafeAreaView } from 'react-native'
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
+})
+
+// ✅ Correcto
+import { SafeAreaView } from 'react-native-safe-area-context'
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  inner:     { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xl },
+})
+// Y en el JSX: <SafeAreaView style={styles.container}><View style={styles.inner}>...</View></SafeAreaView>
+// O con ScrollView: <SafeAreaView style={styles.container}><ScrollView contentContainerStyle={styles.scroll}>...</ScrollView></SafeAreaView>
+```
+
+---
+
+### Lo que ya funciona (completo hasta Fase 6)
 - Auth completo (registro, login, sesión persistida, logout)
 - Crear liguillas **sin fechas** — nombre, recompensa, código de acceso y máx. participantes
 - Unirse a liguillas por código
@@ -305,11 +357,65 @@ npm run types:gen
 
 ## FASE 7 · Pulido visual y UX mínima
 
-- [ ] 7.1 Aplicar `theme.ts` de forma consistente en todos los componentes
-- [ ] 7.2 Añadir estados de **carga** (`ActivityIndicator`) en todas las pantallas con llamadas async
-- [ ] 7.3 Añadir estados **vacíos** cuando no hay liguillas, bloques o participantes
-- [ ] 7.4 Añadir manejo de **errores** con mensajes claros al usuario (toast o inline)
-- [ ] 7.5 Revisar flujo completo de extremo a extremo
+- [ ] 7.1 Aplicar `theme.ts` de forma consistente + sustituir emojis por iconos vectoriales (`@expo/vector-icons` · Ionicons)
+
+  **Librería elegida: `@expo/vector-icons` — set Ionicons** (ya instalada con Expo, funciona en web y móvil sin configuración extra)
+
+  **Inventario de iconos necesarios** (nombre Ionicons → reemplaza a):
+
+  | Uso | Ionicons | Reemplaza |
+  |---|---|---|
+  | Borrar bloque | `trash-outline` | 🗑️ |
+  | Mover arriba | *(eliminado — drag & drop)* | ▲ |
+  | Mover abajo | *(eliminado — drag & drop)* | ▼ |
+  | Drag handle | `reorder-three-outline` | ▲▼ |
+  | Añadir bloque | `add-circle-outline` | + Añadir |
+  | Ranking / trofeo | `trophy-outline` | 🏆 |
+  | Calendario / fecha | `calendar-outline` | 📅 |
+  | Hora | `time-outline` | 🕐 |
+  | Compartir / copiar | `copy-outline` | 📋 |
+  | Bloqueo ranking | `lock-closed-outline` | 🔒 |
+  | Ranking visible | `eye-outline` | 👁 |
+  | Iniciar liguilla | `play-circle-outline` | ▶ |
+  | Editar fechas | `create-outline` | ✏️ |
+  | Foto / cámara | `camera-outline` | 📸 |
+  | Galería | `image-outline` | — |
+  | Flash (resultado) | `flash-outline` | ⚡ |
+  | Encadenado (check) | `checkmark-circle-outline` | ✓ |
+  | Sin resultado | `ellipse-outline` | — |
+  | Participantes | `people-outline` | — |
+  | Código de acceso | `key-outline` | 🔑 |
+  | Volver / back | `arrow-back-outline` | ← |
+  | Logout | `log-out-outline` | — |
+  | Liguilla vacía | `grid-outline` | 🧱 |
+  | Home vacío | `albums-outline` | — |
+  | Unirse a liga | `enter-outline` | — |
+  | Crear liga | `add-outline` | — |
+  | Oro / 1er puesto | `medal-outline` + color #FFD700 | 🥇 |
+  | Plata / 2º puesto | `medal-outline` + color #C0C0C0 | 🥈 |
+  | Bronce / 3er puesto | `medal-outline` + color #CD7F32 | 🥉 |
+
+  **Crear componente `components/Icon.tsx`** — wrapper de Ionicons con tamaño y color del theme por defecto.
+
+- [x] 7.1.1 Crear `components/Icon.tsx` — wrapper de Ionicons
+- [x] 7.1.2 Sustituir emojis por `<Icon>` en `leagues/[id].tsx` (trash, drag, add, share, ranking, dates, back, play, edit)
+- [ ] **7.1.3 ← EMPEZAR AQUÍ MAÑANA** — Sustituir emojis por `<Icon>` en `blocks/[id]/index.tsx` y `log-attempt.tsx`
+- [ ] 7.1.4 Sustituir emojis por `<Icon>` en `leagues/[id]/ranking.tsx` (trofeo, medallas, lock)
+- [ ] 7.1.5 Sustituir emojis por `<Icon>` en `(app)/index.tsx` (home) y `leagues/create.tsx`
+- [x] 7.1.6 **Corregir contraste date picker en web** — `colorScheme: 'dark'` + `color: '#FFFFFF'` explícito + `select` con borde y fondo `surfaceAlt`
+
+- [x] 7.2 **Drag & drop para reordenar bloques** (`react-native-draggable-flatlist` + `react-native-gesture-handler`)
+  - Reemplazados los handles ▲/▼ por handle de arrastre con icono `reorder-three-outline`
+  - `onLongPress={drag}` con `delayLongPress={100}` para activar el drag
+  - `ScaleDecorator` para el efecto visual de escala al arrastrar
+  - Envuelto en `GestureHandlerRootView` (requerido por la librería)
+  - Persistir nuevo orden en BD: `UPDATE blocks SET position = $i WHERE id = $id`
+  - Solo disponible antes de que la liga comience (`!isInProgress`)
+
+- [ ] 7.3 Añadir estados de **carga** (`ActivityIndicator`) en todas las pantallas con llamadas async
+- [ ] 7.4 Añadir estados **vacíos** cuando no hay liguillas, bloques o participantes
+- [ ] 7.5 Añadir manejo de **errores** con mensajes claros al usuario (toast o inline)
+- [ ] 7.6 Revisar flujo completo de extremo a extremo
 
 ---
 

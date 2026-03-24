@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import {
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
+  View, Text, StyleSheet, TouchableOpacity,
   TextInput, ActivityIndicator, Alert,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
 import { colors, typography, spacing, radius } from '../../../constants'
+import { Icon } from '../../../components'
 
 export default function JoinLeagueScreen() {
   const router = useRouter()
@@ -85,59 +87,63 @@ export default function JoinLeagueScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>← Volver</Text>
+      <View style={styles.inner}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color={colors.textSecondary} />
+            <Text style={styles.backText}>Volver</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Unirse a liguilla</Text>
+          <Text style={styles.subtitle}>Introduce el código que te han compartido</Text>
+        </View>
+
+        <View style={styles.form}>
+          <TextInput
+            style={[styles.codeInput, error ? styles.inputError : null]}
+            placeholder="ESCALA24"
+            placeholderTextColor={colors.textMuted}
+            value={code}
+            onChangeText={t => { setCode(t.toUpperCase()); setError('') }}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={20}
+          />
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        </View>
+
+        <TouchableOpacity
+          style={[styles.buttonPrimary, loading && styles.buttonDisabled]}
+          onPress={handleJoin} activeOpacity={0.8} disabled={loading}
+        >
+          {loading
+            ? <ActivityIndicator color={colors.textInverse} />
+            : <Text style={styles.buttonPrimaryText}>Unirse</Text>
+          }
         </TouchableOpacity>
-        <Text style={styles.title}>Unirse a liguilla</Text>
-        <Text style={styles.subtitle}>Introduce el código que te han compartido</Text>
       </View>
-
-      <View style={styles.form}>
-        <TextInput
-          style={[styles.codeInput, error ? styles.inputError : null]}
-          placeholder="ESCALA24"
-          placeholderTextColor={colors.textMuted}
-          value={code}
-          onChangeText={t => { setCode(t.toUpperCase()); setError('') }}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          maxLength={20}
-        />
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      </View>
-
-      <TouchableOpacity
-        style={[styles.buttonPrimary, loading && styles.buttonDisabled]}
-        onPress={handleJoin} activeOpacity={0.8} disabled={loading}
-      >
-        {loading
-          ? <ActivityIndicator color={colors.textInverse} />
-          : <Text style={styles.buttonPrimaryText}>Unirse</Text>
-        }
-      </TouchableOpacity>
     </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
-  header: { marginBottom: spacing.xl },
-  backText: { color: colors.textSecondary, fontSize: typography.size.md, marginBottom: spacing.md },
-  title: { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary, marginBottom: spacing.xs },
-  subtitle: { fontSize: typography.size.md, color: colors.textSecondary },
-  form: { marginBottom: spacing.lg, gap: spacing.xs },
-  codeInput: {
+  container:         { flex: 1, backgroundColor: colors.background },
+  inner:             { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xl },
+  header:            { marginBottom: spacing.xl },
+  backButton:        { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.lg },
+  backText:          { color: colors.textSecondary, fontSize: typography.size.md },
+  title:             { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary, marginBottom: spacing.xs },
+  subtitle:          { fontSize: typography.size.md, color: colors.textSecondary },
+  form:              { marginBottom: spacing.lg, gap: spacing.xs },
+  codeInput:         {
     backgroundColor: colors.surfaceAlt, borderRadius: radius.md,
     paddingHorizontal: spacing.md, paddingVertical: spacing.lg,
     fontSize: typography.size['2xl'], fontWeight: typography.weight.bold,
     color: colors.primary, borderWidth: 1, borderColor: colors.border,
     textAlign: 'center', letterSpacing: 4,
   },
-  inputError: { borderColor: colors.error },
-  errorText: { fontSize: typography.size.sm, color: colors.error, textAlign: 'center' },
-  buttonPrimary: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center' },
-  buttonDisabled: { opacity: 0.6 },
+  inputError:        { borderColor: colors.error },
+  errorText:         { fontSize: typography.size.sm, color: colors.error, textAlign: 'center' },
+  buttonPrimary:     { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center' },
+  buttonDisabled:    { opacity: 0.6 },
   buttonPrimaryText: { color: colors.textInverse, fontSize: typography.size.lg, fontWeight: typography.weight.bold },
 })
-
