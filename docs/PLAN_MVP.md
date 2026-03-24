@@ -7,7 +7,7 @@
 
 ## 📍 Punto de partida para el siguiente agente
 
-> **Estado:** Fase 5 completada · **Rama:** `feature/fase4` · **Siguiente:** Fase 6 (Ranking)
+> **Estado:** Fase 6 completada · **Rama:** `feature/fase-6` · **Siguiente:** Fase 7 (Pulido visual y UX)
 
 ### Lo que ya funciona
 - Auth completo (registro, login, sesión persistida, logout)
@@ -258,12 +258,12 @@ npm run types:gen
 
 ---
 
-- [ ] 6.1 Añadir toggle **"¿Mostrar ranking durante la liguilla?"** en `create.tsx`
+- [x] 6.1 Añadir toggle **"¿Mostrar ranking durante la liguilla?"** en `create.tsx`
   - UI: switch con label "Visible para todos" / "Solo al terminar"
   - Por defecto: `true` (visible)
   - Guardar en `leagues.ranking_visible_during` al crear la liguilla
 
-- [ ] 6.2 Crear pantalla `app/(app)/leagues/[id]/ranking.tsx`
+- [x] 6.2 Crear pantalla `app/(app)/leagues/[id]/ranking.tsx`
   - Leer `ranking_visible_during` y `end_date` de la liguilla
   - **Lógica de acceso:**
     - Si `user.id === league.creator_id` → siempre mostrar
@@ -272,22 +272,34 @@ npm run types:gen
     - En cualquier otro caso → mostrar pantalla de bloqueo: *"El ranking se revelará cuando finalice la liguilla 🔒"*
   - Lista de participantes ordenada por puntuación total descendente
 
-- [ ] 6.3 Crear `lib/tiebreak.ts` con la lógica de desempate:
+- [x] 6.3 Crear `lib/tiebreak.ts` con la lógica de desempate:
   1. Nº de bloques encadenados (mayor primero)
   2. Nº de flashes (mayor primero)
   3. Suma de dificultades encadenadas (mayor primero)
   4. Menor nº total de pegues
   5. Empate técnico
 
-- [ ] 6.4 Suscribirse a cambios en `attempts` con **Supabase Realtime** para actualizar el ranking en tiempo real
+- [x] 6.4 Suscribirse a cambios en `attempts` con **Supabase Realtime** para actualizar el ranking en tiempo real
   - Solo activar el listener si el usuario tiene permiso para ver el ranking (ver lógica del 6.2)
   - Cancelar la suscripción al desmontar el componente (`useEffect` cleanup)
 
-- [ ] 6.5 Mostrar en el detalle de liguilla `[id].tsx` un indicador del estado de visibilidad del ranking
+- [x] 6.5 Mostrar en el detalle de liguilla `[id].tsx` un indicador del estado de visibilidad del ranking
   - Si `creator_id === user.id`: mostrar badge *"🔒 Solo tú ves el ranking"* o *"👁 Ranking visible para todos"*
   - Si es participante: mostrar *"El ranking se revelará al terminar"* cuando `ranking_visible_during === false`
 
-- [ ] 6.6 Añadir slot de banner publicitario placeholder en la parte inferior del ranking
+- [x] ~~6.6 Añadir slot de banner publicitario placeholder en la parte inferior del ranking~~ *(descartado)*
+
+### Correcciones y mejoras incluidas en Fase 6
+
+- [x] **Migración BD `start_date`/`end_date` a `TIMESTAMPTZ` nullable** — columnas cambiadas de `DATE NOT NULL` a `TIMESTAMPTZ` via `supabase db push` (`20260324_league_dates_to_timestamptz.sql`)
+- [x] **Policy RLS UPDATE en `leagues`** — faltaba la política `League creator can update` que permitía al creador hacer UPDATE de su liguilla; sin ella el guardado de fechas fallaba silenciosamente
+- [x] **Selector de fechas web mejorado** — reemplazado `<input type="datetime-local">` (no permite filtrar opciones de minutos) por `<input type="date">` + `<select>` con exactamente 96 opciones (00:00, 00:15, 00:30... 23:45)
+- [x] **Snap automático de minutos** — función `snapToQuarter()` que redondea cualquier valor al cuarto de hora más cercano antes de guardar
+- [x] **Lógica `hasDates`/`isInProgress` separada** — antes usaba `isStarted` para todo; ahora:
+  - `hasDates`: liga con fechas asignadas → oculta botón "Iniciar", muestra "Editar fechas"
+  - `isInProgress`: liga ya comenzada (`now >= start_date`) → bloquea añadir/borrar/reordenar bloques
+- [x] **Botón "Editar fechas"** visible para el creador cuando la liga tiene fechas pero aún no ha comenzado
+- [x] **Error de guardado visible** — `handleSaveDates` muestra el mensaje de error real de Supabase en un Alert en lugar de fallar silenciosamente
 
 ---
 
