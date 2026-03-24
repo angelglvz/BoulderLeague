@@ -16,6 +16,9 @@ import type { Block, Attempt } from '../../../../types'
 
 const GOES_OPTIONS: Goes[] = [0, 1, 2, 3, 4, 5, 6]
 
+// Estado de la liga respecto al registro de resultados
+type LeagueStatus = 'not_started' | 'in_progress' | 'finished'
+
 export default function LogAttemptScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
@@ -26,6 +29,7 @@ export default function LogAttemptScreen() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>('not_started')
 
   useEffect(() => {
     if (id) loadData()
@@ -46,7 +50,29 @@ export default function LogAttemptScreen() {
         .eq('id', id)
         .single()
 
-      if (blockData) setBlock(blockData)
+      if (blockData) {
+        setBlock(blockData)
+
+        // Estado de la liga del bloque
+        const { data: leagueData } = await supabase
+          .from('leagues')
+          .select('start_date, end_date')
+          .eq('id', blockData.league_id)
+          .single()
+
+        if (leagueData) {
+          const now = new Date()
+          if (!leagueData.start_date) {
+            setLeagueStatus('not_started')
+          } else if (now < new Date(leagueData.start_date)) {
+            setLeagueStatus('not_started')
+          } else if (leagueData.end_date && now > new Date(leagueData.end_date)) {
+            setLeagueStatus('finished')
+          } else {
+            setLeagueStatus('in_progress')
+          }
+        }
+      }
 
       // Intento existente del usuario
       if (uid) {
@@ -85,7 +111,7 @@ export default function LogAttemptScreen() {
         })
 
       if (error) throw error
-      router.back()
+      router.replace(`/(app)/blocks/${block.id}`)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al guardar'
       alert('❌ ' + msg)
@@ -110,6 +136,52 @@ export default function LogAttemptScreen() {
     )
   }
 
+  // ── Pantalla de bloqueo: liga no iniciada ────────────────────────────────
+  if (leagueStatus === 'not_started') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.blockedScreen}>
+          <TouchableOpacity
+            onPress={() => router.replace(`/(app)/blocks/${id}`)}
+            style={styles.backButton}
+          >
+            <Text style={styles.backText}>← Volver</Text>
+          </TouchableOpacity>
+          <View style={styles.blockedCard}>
+            <Text style={styles.blockedEmoji}>⏳</Text>
+            <Text style={styles.blockedTitle}>La liguilla aún no ha comenzado</Text>
+            <Text style={styles.blockedSubtitle}>
+              Podrás registrar tus resultados una vez que el creador inicie la liguilla.
+            </Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  // ── Pantalla de bloqueo: liga finalizada ─────────────────────────────────
+  if (leagueStatus === 'finished') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.blockedScreen}>
+          <TouchableOpacity
+            onPress={() => router.replace(`/(app)/blocks/${id}`)}
+            style={styles.backButton}
+          >
+            <Text style={styles.backText}>← Volver</Text>
+          </TouchableOpacity>
+          <View style={styles.blockedCard}>
+            <Text style={styles.blockedEmoji}>🏁</Text>
+            <Text style={styles.blockedTitle}>La liguilla ha finalizado</Text>
+            <Text style={styles.blockedSubtitle}>
+              El período de registro de resultados ha terminado.
+            </Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -117,7 +189,7 @@ export default function LogAttemptScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Cabecera */}
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
           <Text style={styles.backText}>← Volver</Text>
         </TouchableOpacity>
 
@@ -147,7 +219,7 @@ export default function LogAttemptScreen() {
             </View>
             <TouchableOpacity
               style={styles.backFullButton}
-              onPress={() => router.back()}
+              onPress={() => router.replace(`/(app)/blocks/${id}`)}
               activeOpacity={0.8}
             >
               <Text style={styles.backFullButtonText}>← Volver al bloque</Text>
@@ -337,5 +409,30 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontSize: typography.size.md,
   },
+  blockedScreen: {
+    flex: 1,
+    padding: spacing.lg,
+  },
+  blockedCard: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  blockedEmoji: {
+    fontSize: 64,
+  },
+  blockedTitle: {
+    fontSize: typography.size.xl,
+    fontWeight: typography.weight.extrabold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  blockedSubtitle: {
+    fontSize: typography.size.md,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 })
-

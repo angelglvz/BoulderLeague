@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
+import { useEffect, useState } from 'react'
 import { colors, typography, spacing, radius } from '../constants'
 import type { League } from '../types'
 
@@ -7,38 +8,79 @@ interface LeagueCardProps {
   readonly league: League
 }
 
+/** Formatea fecha + hora: "12 mar · 18:30" */
+function formatDateTime(dateStr: string) {
+  const d = new Date(dateStr)
+  const fecha = d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+  const hora  = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+  return `${fecha} · ${hora}`
+}
+
+/** Cuenta atrás legible desde ahora hasta una fecha */
+function countdownTo(target: Date): string {
+  const diff = target.getTime() - Date.now()
+  if (diff <= 0) return '0 min'
+
+  const totalMin  = Math.floor(diff / 60000)
+  const totalHrs  = Math.floor(diff / 3600000)
+  const days      = Math.floor(diff / 86400000)
+  const hrs       = totalHrs % 24
+  const mins      = totalMin % 60
+
+  if (days >= 1) return `${days}d ${hrs}h`
+  if (totalHrs >= 1) return `${totalHrs}h ${mins}m`
+  return `${totalMin}m`
+}
+
 export function LeagueCard({ league }: LeagueCardProps) {
   const router = useRouter()
+  const [now, setNow] = useState(() => new Date())
 
-  const now = new Date()
+  // Actualizar "ahora" cada minuto para que la cuenta atrás sea reactiva
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+
   const start = league.start_date ? new Date(league.start_date) : null
-  const end = league.end_date ? new Date(league.end_date) : null
+  const end   = league.end_date   ? new Date(league.end_date)   : null
 
   let status: 'pending' | 'upcoming' | 'active' | 'finished'
   if (!start || !end) status = 'pending'
   else if (now < start) status = 'upcoming'
-  else if (now > end) status = 'finished'
-  else status = 'active'
+  else if (now > end)   status = 'finished'
+  else                  status = 'active'
 
   const statusLabel = {
-    pending: '⏳ Sin iniciar',
+    pending:  '⏳ Sin iniciar',
     upcoming: '🕐 Próximamente',
-    active: '🟢 Activa',
+    active:   '🟢 Activa',
     finished: '🏁 Finalizada',
   }[status]
 
   const statusColor = {
-    pending: colors.textMuted,
+    pending:  colors.textMuted,
     upcoming: colors.warning,
-    active: colors.success,
+    active:   colors.success,
     finished: colors.textMuted,
   }[status]
 
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString('es-ES', {
-      day: 'numeric',
-      month: 'short',
-    })
+  // Línea de info secundaria según estado
+  let infoLine: string | null = null
+  if (status === 'upcoming' && start) {
+    infoLine = `📅 Comienza el ${formatDateTime(league.start_date!)}`
+  } else if (status === 'active' && end) {
+    const msLeft = end.getTime() - now.getTime()
+    const THREE_DAYS = 3 * 24 * 3600 * 1000
+    if (msLeft <= THREE_DAYS) {
+      infoLine = `⏱ Termina en ${countdownTo(end)}`
+    } else {
+      infoLine = `En curso · fin el ${formatDateTime(league.end_date!)}`
+    }
+  } else if (status === 'finished' && end) {
+    infoLine = `🏁 Finalizó el ${formatDateTime(league.end_date!)}`
+  } else if (status === 'pending') {
+    infoLine = '📅 Fechas pendientes de asignar'
   }
 
   return (
@@ -53,11 +95,7 @@ export function LeagueCard({ league }: LeagueCardProps) {
       </View>
 
       <View style={styles.meta}>
-        <Text style={styles.dates}>
-          {start && end
-            ? `📅 ${formatDate(league.start_date!)} → ${formatDate(league.end_date!)}`
-            : '📅 Fechas pendientes de asignar'}
-        </Text>
+        {infoLine ? <Text style={styles.dates}>{infoLine}</Text> : null}
         {league.reward ? (
           <Text style={styles.reward} numberOfLines={1}>🏆 {league.reward}</Text>
         ) : null}
@@ -122,4 +160,3 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
 })
-
