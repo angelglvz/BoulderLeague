@@ -1,4 +1,4 @@
-export type Difficulty = 'novato' | 'medio' | 'avanzado' | 'experimentado' | 'profesional'
+export type Difficulty = 'principiante' | 'novato' | 'medio' | 'avanzado' | 'experimentado' | 'elite' | 'profesional'
 
 export interface Database {
   public: {

@@ -1,17 +1,17 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, Clipboard, FlatList,
   Modal, Platform, ScrollView,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import DateTimePickerModal from 'react-native-modal-datetime-picker'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
 import { colors, typography, spacing, radius } from '../../../constants'
 import { BlockCard } from '../../../components'
-import type { League, Block } from '../../../types'
+import type { League, Block, Attempt } from '../../../types'
 
 // ── Helpers de fecha ─────────────────────────────────────────────────────────
 function toISO(d: Date) { return d.toISOString().split('T')[0] }
@@ -73,7 +73,9 @@ export default function LeagueDetailScreen() {
   const [league, setLeague] = useState<League | null>(null)
   const [blocks, setBlocks] = useState<Block[]>([])
   const [participantCount, setParticipantCount] = useState(0)
+  const [userAttempts, setUserAttempts] = useState<Record<string, Attempt>>({})
   const [loading, setLoading] = useState(true)
+  const blockIdsRef = useRef<string[]>([])
 
   // Modal de iniciar liguilla
   const [showStartModal, setShowStartModal] = useState(false)
@@ -85,6 +87,30 @@ export default function LeagueDetailScreen() {
 
   useEffect(() => { if (id) fetchData() }, [id])
 
+  useFocusEffect(
+    useCallback(() => {
+      if (id) fetchUserAttempts()
+    }, [id, user?.id])
+  )
+
+  async function fetchUserAttempts(blockIds?: string[]) {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const uid = sessionData.session?.user?.id
+    if (!uid) return
+    const ids = blockIds ?? blockIdsRef.current
+    if (ids.length === 0) return
+    const { data } = await supabase
+      .from('attempts')
+      .select('*')
+      .eq('user_id', uid)
+      .in('block_id', ids)
+    if (data) {
+      const map: Record<string, Attempt> = {}
+      for (const a of data) map[a.block_id] = a
+      setUserAttempts(map)
+    }
+  }
+
   async function fetchData() {
     setLoading(true)
     const [{ data: leagueData }, { data: blocksData }, { count }] = await Promise.all([
@@ -93,7 +119,12 @@ export default function LeagueDetailScreen() {
       supabase.from('league_participants').select('*', { count: 'exact', head: true }).eq('league_id', id),
     ])
     if (leagueData) setLeague(leagueData)
-    if (blocksData) setBlocks(blocksData)
+    if (blocksData) {
+      setBlocks(blocksData)
+      const blockIds = blocksData.map((b: Block) => b.id)
+      blockIdsRef.current = blockIds
+      await fetchUserAttempts(blockIds)
+    }
     if (count !== null) setParticipantCount(count)
     setLoading(false)
   }
@@ -148,6 +179,9 @@ export default function LeagueDetailScreen() {
 
   const isCreator = user?.id === league?.creator_id
   const leagueStatus = getLeagueStatus()
+
+  // La liga "ha iniciado" cuando ya tiene fecha de inicio y esa fecha ya pasó
+  const isStarted = !!league?.start_date && new Date() >= new Date(league.start_date + 'T00:00:00')
 
   // ── Borrar bloque ────────────────────────────────────────────────────────
   const handleDeleteBlock = useCallback((block: Block) => {
@@ -257,8 +291,8 @@ export default function LeagueDetailScreen() {
               {league.reward && <InfoRow label="🏆 Recompensa" value={league.reward} />}
             </View>
 
-            {/* Botón iniciar (solo creador) */}
-            {isCreator && (() => {
+            {/* Botón iniciar (solo creador y solo si la liga NO ha comenzado aún) */}
+            {isCreator && !isStarted && (() => {
               const MIN_BLOCKS = 5
               const remaining = MIN_BLOCKS - blocks.length
               const canStart = blocks.length >= MIN_BLOCKS
@@ -299,50 +333,57 @@ export default function LeagueDetailScreen() {
             {/* Bloques header */}
             <View style={styles.blocksHeader}>
               <Text style={styles.sectionTitle}>Bloques ({blocks.length})</Text>
-              <TouchableOpacity
-                style={styles.addBlockButton}
-                onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
-              >
-                <Text style={styles.addBlockText}>+ Añadir</Text>
-              </TouchableOpacity>
+              {isCreator && !isStarted && (
+                <TouchableOpacity
+                  style={styles.addBlockButton}
+                  onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
+                >
+                  <Text style={styles.addBlockText}>+ Añadir</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         }
         renderItem={({ item, index }) => (
           <View style={styles.blockRow}>
-            {/* Handles de reordenación */}
-            <View style={styles.orderHandles}>
-              <TouchableOpacity
-                onPress={() => handleMoveBlock(item.id, 'up')}
-                disabled={index === 0}
-                style={[styles.handle, index === 0 && styles.handleDisabled]}
-              >
-                <Text style={styles.handleText}>▲</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => handleMoveBlock(item.id, 'down')}
-                disabled={index === blocks.length - 1}
-                style={[styles.handle, index === blocks.length - 1 && styles.handleDisabled]}
-              >
-                <Text style={styles.handleText}>▼</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Handles de reordenación — solo si la liga no ha iniciado */}
+            {isCreator && !isStarted && (
+              <View style={styles.orderHandles}>
+                <TouchableOpacity
+                  onPress={() => handleMoveBlock(item.id, 'up')}
+                  disabled={index === 0}
+                  style={[styles.handle, index === 0 && styles.handleDisabled]}
+                >
+                  <Text style={styles.handleText}>▲</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleMoveBlock(item.id, 'down')}
+                  disabled={index === blocks.length - 1}
+                  style={[styles.handle, index === blocks.length - 1 && styles.handleDisabled]}
+                >
+                  <Text style={styles.handleText}>▼</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Card */}
             <View style={styles.blockCardWrapper}>
               <BlockCard
                 block={item}
+                attempt={userAttempts[item.id] ?? null}
                 onPress={() => router.push(`/(app)/blocks/${item.id}`)}
               />
             </View>
 
-            {/* Botón borrar */}
-            <TouchableOpacity
-              style={styles.deleteHandle}
-              onPress={() => handleDeleteBlock(item)}
-            >
-              <Text style={styles.deleteText}>🗑️</Text>
-            </TouchableOpacity>
+            {/* Botón borrar — solo si la liga no ha iniciado */}
+            {isCreator && !isStarted && (
+              <TouchableOpacity
+                style={styles.deleteHandle}
+                onPress={() => handleDeleteBlock(item)}
+              >
+                <Text style={styles.deleteText}>🗑️</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
         ListEmptyComponent={

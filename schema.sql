@@ -57,7 +57,7 @@ CREATE TABLE blocks (
   league_id UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
   photo_url TEXT NOT NULL,
   identifier TEXT NOT NULL, -- nombre, color, sector
-  difficulty TEXT CHECK (difficulty IN ('novato', 'medio', 'avanzado', 'experimentado', 'profesional')),
+  difficulty TEXT CHECK (difficulty IN ('principiante', 'novato', 'medio', 'avanzado', 'experimentado', 'elite', 'profesional')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
