@@ -44,13 +44,14 @@ for (let h = 0; h < 24; h++) {
 }
 
 // ── Componente DateField multiplataforma ─────────────────────────────────────
-function DateField({ value, onChange, placeholder, onPress, minDate, colors }: {
+function DateField({ value, onChange, placeholder, onPress, minDate, colors, isDark }: {
   value: Date | null
   onChange: (d: Date) => void
   placeholder: string
   onPress: () => void
   minDate?: Date
   colors: ReturnType<typeof useTheme>['colors']
+  isDark: boolean
 }) {
   if (Platform.OS === 'web') {
     const dateStr = value
@@ -79,6 +80,9 @@ function DateField({ value, onChange, placeholder, onPress, minDate, colors }: {
       }
     }
 
+    // colorScheme controla el icono nativo del input type="date" del navegador
+    const colorScheme = isDark ? 'dark' : 'light'
+
     return (
       <View style={[dateFieldStyles.button, { backgroundColor: colors.surface, borderColor: colors.border, gap: 8 }]}>
         {/* @ts-ignore */}
@@ -87,18 +91,37 @@ function DateField({ value, onChange, placeholder, onPress, minDate, colors }: {
           value={dateStr}
           min={minDateStr}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => applyDate(e.target.value, timeStr)}
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#FFFFFF', colorScheme: 'dark', fontSize: typography.size.md, cursor: 'pointer' }}
+          style={{
+            flex: 1,
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            color: colors.textPrimary,
+            colorScheme,
+            fontSize: typography.size.md,
+            cursor: 'pointer',
+          }}
         />
         <Icon name="time-outline" size={18} color={colors.textSecondary} />
         {/* @ts-ignore */}
         <select
           value={timeStr}
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) => applyTime(e.target.value, dateStr)}
-          style={{ background: colors.surfaceAlt, border: `1px solid ${colors.border}`, outline: 'none', color: '#FFFFFF', colorScheme: 'dark', fontSize: typography.size.md, cursor: 'pointer', borderRadius: 6, padding: '4px 8px' }}
+          style={{
+            background: colors.surfaceAlt,
+            border: `1px solid ${colors.border}`,
+            outline: 'none',
+            color: colors.textPrimary,
+            colorScheme,
+            fontSize: typography.size.md,
+            cursor: 'pointer',
+            borderRadius: 6,
+            padding: '4px 8px',
+          }}
         >
           {HOUR_OPTIONS.map(t => (
             // @ts-ignore
-            <option key={t} value={t} style={{ background: colors.surfaceAlt, color: '#FFFFFF' }}>{t}</option>
+            <option key={t} value={t} style={{ background: colors.surfaceAlt, color: colors.textPrimary }}>{t}</option>
           ))}
         </select>
       </View>
@@ -130,7 +153,7 @@ export default function LeagueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { user } = useSession()
-  const { colors } = useTheme()
+  const { colors, isDark } = useTheme()
 
   const [league, setLeague] = useState<League | null>(null)
   const [blocks, setBlocks] = useState<Block[]>([])
@@ -545,11 +568,11 @@ export default function LeagueDetailScreen() {
             </Text>
 
             <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>Fecha y hora de inicio</Text>
-            <DateField value={startDate} onChange={setStartDate} placeholder="DD/MM/AAAA HH:MM" onPress={() => setPickerTarget('start')} colors={colors} />
+            <DateField value={startDate} onChange={setStartDate} placeholder="DD/MM/AAAA HH:MM" onPress={() => setPickerTarget('start')} colors={colors} isDark={isDark} />
             {dateErrors.start && <Text style={[styles.modalError, { color: colors.error }]}>{dateErrors.start}</Text>}
 
             <Text style={[styles.modalLabel, { color: colors.textSecondary, marginTop: spacing.md }]}>Fecha y hora de fin</Text>
-            <DateField value={endDate} onChange={setEndDate} placeholder="DD/MM/AAAA HH:MM" onPress={() => setPickerTarget('end')} minDate={startDate ?? undefined} colors={colors} />
+            <DateField value={endDate} onChange={setEndDate} placeholder="DD/MM/AAAA HH:MM" onPress={() => setPickerTarget('end')} minDate={startDate ?? undefined} colors={colors} isDark={isDark} />
             {dateErrors.end && <Text style={[styles.modalError, { color: colors.error }]}>{dateErrors.end}</Text>}
 
             <View style={styles.modalButtons}>
