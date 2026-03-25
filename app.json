@@ -2,6 +2,7 @@
   "expo": {
     "name": "Climbify",
     "slug": "boulder-league",
+    "owner": "jasongamero",
     "scheme": "boulder-league",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,9 +14,11 @@
       "backgroundColor": "#7B61FF"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.climbify"
     },
     "android": {
+      "package": "com.climbify",
       "adaptiveIcon": {
         "backgroundColor": "#6B5CE7",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -30,6 +33,12 @@
     "plugins": [
       "expo-router",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "eeab4fd8-50dd-4ccb-a037-3a6df7bf08a6"
+      }
+    }
   }
 }
