@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { colors, typography, spacing, radius } from '../constants'
+import { typography, spacing, radius } from '../constants'
+import { useTheme } from '../lib/ThemeContext'
 import type { League } from '../types'
 
 interface LeagueCardProps {
@@ -34,6 +35,7 @@ function countdownTo(target: Date): string {
 
 export function LeagueCard({ league }: LeagueCardProps) {
   const router = useRouter()
+  const { colors } = useTheme()
   const [now, setNow] = useState(() => new Date())
 
   // Actualizar "ahora" cada minuto para que la cuenta atrás sea reactiva
@@ -85,25 +87,25 @@ export function LeagueCard({ league }: LeagueCardProps) {
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
       activeOpacity={0.8}
       onPress={() => router.push(`/(app)/leagues/${league.id}`)}
     >
       <View style={styles.header}>
-        <Text style={styles.name} numberOfLines={1}>{league.name}</Text>
+        <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={1}>{league.name}</Text>
         <Text style={[styles.status, { color: statusColor }]}>{statusLabel}</Text>
       </View>
 
       <View style={styles.meta}>
-        {infoLine ? <Text style={styles.dates}>{infoLine}</Text> : null}
+        {infoLine ? <Text style={[styles.dates, { color: colors.textSecondary }]}>{infoLine}</Text> : null}
         {league.reward ? (
-          <Text style={styles.reward} numberOfLines={1}>🏆 {league.reward}</Text>
+          <Text style={[styles.reward, { color: colors.textSecondary }]} numberOfLines={1}>🏆 {league.reward}</Text>
         ) : null}
       </View>
 
       {league.is_private && (
-        <View style={styles.privateBadge}>
-          <Text style={styles.privateBadgeText}>🔒 Privada</Text>
+        <View style={[styles.privateBadge, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+          <Text style={[styles.privateBadgeText, { color: colors.textMuted }]}>🔒 Privada</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -112,11 +114,9 @@ export function LeagueCard({ league }: LeagueCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
     gap: spacing.sm,
   },
   header: {
@@ -128,7 +128,6 @@ const styles = StyleSheet.create({
   name: {
     fontSize: typography.size.lg,
     fontWeight: typography.weight.bold,
-    color: colors.textPrimary,
     flex: 1,
   },
   status: {
@@ -140,23 +139,18 @@ const styles = StyleSheet.create({
   },
   dates: {
     fontSize: typography.size.sm,
-    color: colors.textSecondary,
   },
   reward: {
     fontSize: typography.size.sm,
-    color: colors.textSecondary,
   },
   privateBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: colors.border,
   },
   privateBadgeText: {
     fontSize: typography.size.xs,
-    color: colors.textMuted,
   },
 })

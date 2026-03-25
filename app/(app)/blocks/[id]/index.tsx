@@ -11,7 +11,8 @@ import {
 } from 'react-native'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
-import { colors, typography, spacing, radius } from '../../../../constants'
+import { typography, spacing, radius } from '../../../../constants'
+import { useTheme } from '../../../../lib/ThemeContext'
 import { resultEmoji } from '../../../../lib/scoring'
 import type { Block, Attempt } from '../../../../types'
 
@@ -30,6 +31,7 @@ type LeagueStatus = 'not_started' | 'in_progress' | 'finished'
 export default function BlockDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  const { colors } = useTheme()
   const [block, setBlock] = useState<Block | null>(null)
   const [attempt, setAttempt] = useState<Attempt | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,7 +97,7 @@ export default function BlockDetailScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     )
@@ -103,14 +105,14 @@ export default function BlockDetailScreen() {
 
   if (!block) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Bloque no encontrado</Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.error }]}>Bloque no encontrado</Text>
       </View>
     )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <Image
           source={{ uri: block.photo_url }}
@@ -123,20 +125,20 @@ export default function BlockDetailScreen() {
             onPress={() => router.replace(`/(app)/leagues/${block.league_id}`)}
             style={styles.backButton}
           >
-            <Text style={styles.backText}>← Volver</Text>
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
           </TouchableOpacity>
 
-          <Text style={styles.identifier}>{block.identifier}</Text>
+          <Text style={[styles.identifier, { color: colors.textPrimary }]}>{block.identifier}</Text>
 
           {block.difficulty && (
-            <View style={styles.difficultyBadge}>
-              <Text style={styles.difficultyText}>
+            <View style={[styles.difficultyBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.difficultyText, { color: colors.textSecondary }]}>
                 {DIFFICULTY_LABEL[block.difficulty]}
               </Text>
             </View>
           )}
 
-          <Text style={styles.dateLabel}>
+          <Text style={[styles.dateLabel, { color: colors.textMuted }]}>
             Añadido el{' '}
             {new Date(block.created_at).toLocaleDateString('es-ES', {
               day: 'numeric',
@@ -146,11 +148,11 @@ export default function BlockDetailScreen() {
           </Text>
 
           {attempt && attempt.number_of_goes > 0 && (
-            <View style={styles.resultCard}>
-              <Text style={styles.resultLabel}>Tu resultado</Text>
+            <View style={[styles.resultCard, { backgroundColor: colors.surface, borderColor: colors.primary + '40' }]}>
+              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Tu resultado</Text>
               <View style={styles.resultRow}>
-                <Text style={styles.resultEmoji}>{resultEmoji(attempt.number_of_goes)}</Text>
-                <Text style={styles.resultGoesLabel}>
+                <Text style={[styles.resultEmoji, { color: colors.primary }]}>{resultEmoji(attempt.number_of_goes)}</Text>
+                <Text style={[styles.resultGoesLabel, { color: colors.textPrimary }]}>
                   {attempt.number_of_goes === 1
                     ? 'Flash'
                     : attempt.number_of_goes >= 6
@@ -161,20 +163,21 @@ export default function BlockDetailScreen() {
             </View>
           )}
           {attempt != null && attempt.number_of_goes === 0 && (
-            <View style={[styles.resultCard, styles.resultPending]}>
-              <Text style={styles.resultPendingText}>⏳ Intentado — aún sin encadenar</Text>
+            <View style={[styles.resultCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.resultPendingText, { color: colors.textMuted }]}>⏳ Intentado — aún sin encadenar</Text>
             </View>
           )}
           {attempt == null && (
-            <View style={[styles.resultCard, styles.resultPending]}>
-              <Text style={styles.resultPendingText}>Sin resultado registrado</Text>
+            <View style={[styles.resultCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.resultPendingText, { color: colors.textMuted }]}>Sin resultado registrado</Text>
             </View>
           )}
 
           <TouchableOpacity
             style={[
               styles.logButton,
-              (attempt != null || leagueStatus !== 'in_progress') && styles.logButtonDisabled,
+              { backgroundColor: colors.primary },
+              (attempt != null || leagueStatus !== 'in_progress') && { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
             ]}
             onPress={() => {
               if (attempt != null || leagueStatus !== 'in_progress') return
@@ -184,7 +187,8 @@ export default function BlockDetailScreen() {
           >
             <Text style={[
               styles.logButtonText,
-              (attempt != null || leagueStatus !== 'in_progress') && styles.logButtonTextDisabled,
+              { color: colors.textInverse },
+              (attempt != null || leagueStatus !== 'in_progress') && { color: colors.textSecondary },
             ]}>
               {attempt != null
                 ? '🔒 Resultado ya registrado'
@@ -202,28 +206,24 @@ export default function BlockDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:          { flex: 1, backgroundColor: colors.background },
-  centered:           { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  container:          { flex: 1 },
+  centered:           { flex: 1, alignItems: 'center', justifyContent: 'center' },
   photo:              { width: '100%', height: 300 },
   content:            { padding: spacing.lg, gap: spacing.md },
   backButton:         { marginBottom: spacing.xs },
-  backText:           { color: colors.textSecondary, fontSize: typography.size.md },
-  identifier:         { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary },
-  difficultyBadge:    { alignSelf: 'flex-start', backgroundColor: colors.surface, borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderWidth: 1, borderColor: colors.border },
-  difficultyText:     { fontSize: typography.size.sm, color: colors.textSecondary, fontWeight: typography.weight.medium },
-  dateLabel:          { fontSize: typography.size.sm, color: colors.textMuted },
-  logButton:              { backgroundColor: colors.primary, borderRadius: radius.lg, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.sm },
-  logButtonDisabled:      { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  logButtonText:          { color: colors.textInverse, fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  logButtonTextDisabled:  { color: colors.textSecondary },
-  resultCard:         { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.primary + '40', gap: spacing.xs },
-  resultLabel:        { fontSize: typography.size.sm, color: colors.textSecondary, fontWeight: typography.weight.medium },
+  backText:           { fontSize: typography.size.md },
+  identifier:         { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
+  difficultyBadge:    { alignSelf: 'flex-start', borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderWidth: 1 },
+  difficultyText:     { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  dateLabel:          { fontSize: typography.size.sm },
+  logButton:          { borderRadius: radius.lg, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.sm },
+  logButtonText:      { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  resultCard:         { borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, gap: spacing.xs },
+  resultLabel:        { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   resultRow:          { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  resultEmoji:        { fontSize: typography.size['2xl'], fontWeight: typography.weight.bold, color: colors.primary },
-  resultGoesLabel:    { fontSize: typography.size.lg, fontWeight: typography.weight.semibold, color: colors.textPrimary },
-  resultScore:        { fontSize: typography.size.xl, fontWeight: typography.weight.extrabold, color: colors.primary },
-  resultPending:      { borderColor: colors.border },
-  resultPendingText:  { fontSize: typography.size.sm, color: colors.textMuted, fontStyle: 'italic' },
-  errorText:          { color: colors.error, fontSize: typography.size.md },
+  resultEmoji:        { fontSize: typography.size['2xl'], fontWeight: typography.weight.bold },
+  resultGoesLabel:    { fontSize: typography.size.lg, fontWeight: typography.weight.semibold },
+  resultPendingText:  { fontSize: typography.size.sm, fontStyle: 'italic' },
+  errorText:          { fontSize: typography.size.md },
 })
 

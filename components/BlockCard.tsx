@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native'
-import { colors, typography, spacing, radius } from '../constants'
+import { typography, spacing, radius } from '../constants'
+import { useTheme } from '../lib/ThemeContext'
 import type { Block, Attempt } from '../types'
 
 interface Props {
@@ -26,7 +27,8 @@ function goesLabel(numberOfGoes: number): string {
 }
 
 export function BlockCard({ block, attempt, onPress }: Props) {
-  // null → sin registro   |  0 → intentado sin encadenar  |  ≥1 → completado
+  const { colors } = useTheme()
+
   const isCompleted  = attempt != null && attempt.number_of_goes >= 1
   const isTried      = attempt != null && attempt.number_of_goes === 0
   const hasResult    = attempt != null
@@ -35,8 +37,9 @@ export function BlockCard({ block, attempt, onPress }: Props) {
     <TouchableOpacity
       style={[
         styles.card,
-        isCompleted && styles.cardCompleted,
-        isTried     && styles.cardTried,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+        isCompleted && { borderColor: colors.primary, backgroundColor: colors.primary + '08' },
+        isTried     && { borderColor: colors.textMuted, backgroundColor: colors.surfaceAlt },
       ]}
       onPress={onPress}
       activeOpacity={0.8}
@@ -44,42 +47,48 @@ export function BlockCard({ block, attempt, onPress }: Props) {
       {/* Franja lateral de estado */}
       <View style={[
         styles.statusStripe,
-        isCompleted && styles.stripeCompleted,
-        isTried     && styles.stripeTried,
-        !hasResult  && styles.stripeEmpty,
+        isCompleted && { backgroundColor: colors.primary },
+        isTried     && { backgroundColor: colors.textMuted },
+        !hasResult  && { backgroundColor: 'transparent' },
       ]} />
 
       <Image source={{ uri: block.photo_url }} style={styles.photo} resizeMode="cover" />
 
       <View style={styles.info}>
-        <Text style={styles.identifier} numberOfLines={1}>
+        <Text style={[styles.identifier, { color: colors.textPrimary }]} numberOfLines={1}>
           {block.identifier}
         </Text>
         {block.difficulty ? (
-          <Text style={styles.difficulty}>
+          <Text style={[styles.difficulty, { color: colors.textMuted }]}>
             {DIFFICULTY_EMOJI[block.difficulty]}{' '}
             {block.difficulty.charAt(0).toUpperCase() + block.difficulty.slice(1)}
           </Text>
         ) : (
-          <Text style={styles.noDifficulty}>Sin dificultad</Text>
+          <Text style={[styles.noDifficulty, { color: colors.textMuted }]}>Sin dificultad</Text>
         )}
       </View>
 
-      {/* Badge de resultado */}
       {hasResult && (
-        <View style={[styles.badge, isCompleted ? styles.badgeCompleted : styles.badgeTried]}>
-          <Text style={[styles.badgeText, isCompleted ? styles.badgeTextCompleted : styles.badgeTextTried]}>
+        <View style={[
+          styles.badge,
+          isCompleted
+            ? { backgroundColor: colors.primary + '20' }
+            : { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
+        ]}>
+          <Text style={[
+            styles.badgeText,
+            { color: isCompleted ? colors.primary : colors.textMuted },
+          ]}>
             {goesLabel(attempt!.number_of_goes)}
           </Text>
         </View>
       )}
 
-      {/* Checkmark si completado */}
       {isCompleted && (
-        <Text style={styles.checkmark}>✓</Text>
+        <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
       )}
 
-      <Text style={styles.arrow}>›</Text>
+      <Text style={[styles.arrow, { color: colors.textMuted }]}>›</Text>
     </TouchableOpacity>
   )
 }
@@ -88,33 +97,14 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: spacing.sm,
-  },
-  cardCompleted: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '08',
-  },
-  cardTried: {
-    borderColor: colors.textMuted,
-    backgroundColor: colors.surfaceAlt,
   },
   statusStripe: {
     width: 4,
     alignSelf: 'stretch',
-  },
-  stripeCompleted: {
-    backgroundColor: colors.primary,
-  },
-  stripeTried: {
-    backgroundColor: colors.textMuted,
-  },
-  stripeEmpty: {
-    backgroundColor: 'transparent',
   },
   photo: {
     width: 68,
@@ -128,16 +118,13 @@ const styles = StyleSheet.create({
   identifier: {
     fontSize: typography.size.md,
     fontWeight: typography.weight.semibold,
-    color: colors.textPrimary,
   },
   difficulty: {
     fontSize: typography.size.sm,
-    color: colors.textMuted,
     textTransform: 'capitalize',
   },
   noDifficulty: {
     fontSize: typography.size.sm,
-    color: colors.textMuted,
     fontStyle: 'italic',
   },
   badge: {
@@ -146,39 +133,17 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     marginRight: spacing.xs,
   },
-  badgeCompleted: {
-    backgroundColor: colors.primary + '20',
-  },
-  badgeTried: {
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
   badgeText: {
     fontSize: typography.size.xs,
     fontWeight: typography.weight.semibold,
   },
-  badgeTextCompleted: {
-    color: colors.primary,
-  },
-  badgeTextTried: {
-    color: colors.textMuted,
-  },
   checkmark: {
     fontSize: typography.size.lg,
-    color: colors.primary,
     fontWeight: typography.weight.bold,
     paddingRight: spacing.xs,
   },
   arrow: {
     fontSize: typography.size.xl,
-    color: colors.textMuted,
     paddingRight: spacing.md,
   },
-  // legacy — ya no usados pero se mantienen para no romper imports externos
-  attemptBadge:  {},
-  attemptDone:   {},
-  attemptNone:   {},
-  attemptEmoji:  {},
-  attemptScore:  {},
 })

@@ -13,11 +13,13 @@ import {
   Alert,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { colors, typography, spacing, radius } from '../../constants'
+import { typography, spacing, radius } from '../../constants'
+import { useTheme } from '../../lib/ThemeContext'
 import { supabase } from '../../lib/supabase'
 
 export default function LoginScreen() {
   const router = useRouter()
+  const { colors } = useTheme()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -45,7 +47,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <KeyboardAvoidingView
         style={styles.inner}
@@ -54,18 +56,18 @@ export default function LoginScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>← Volver</Text>
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Bienvenido de nuevo</Text>
-          <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Bienvenido de nuevo</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Inicia sesión para continuar</Text>
         </View>
 
         {/* Formulario */}
         <View style={styles.form}>
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
             <TextInput
-              style={[styles.input, errors.email ? styles.inputError : null]}
+              style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.email ? colors.error : colors.border }]}
               placeholder="tu@email.com"
               placeholderTextColor={colors.textMuted}
               value={email}
@@ -74,27 +76,27 @@ export default function LoginScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+            {errors.email ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.email}</Text> : null}
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Contraseña</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Contraseña</Text>
             <TextInput
-              style={[styles.input, errors.password ? styles.inputError : null]}
+              style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.password ? colors.error : colors.border }]}
               placeholder="••••••••"
               placeholderTextColor={colors.textMuted}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
             />
-            {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+            {errors.password ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.password}</Text> : null}
           </View>
         </View>
 
         {/* Botones */}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={[styles.buttonPrimary, loading && styles.buttonDisabled]}
+            style={[styles.buttonPrimary, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             activeOpacity={0.8}
             disabled={loading}
@@ -102,14 +104,14 @@ export default function LoginScreen() {
             {loading ? (
               <ActivityIndicator color={colors.textInverse} />
             ) : (
-              <Text style={styles.buttonPrimaryText}>Entrar</Text>
+              <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Entrar</Text>
             )}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-            <Text style={styles.linkText}>
+            <Text style={[styles.linkText, { color: colors.textSecondary }]}>
               ¿No tienes cuenta?{' '}
-              <Text style={styles.linkTextBold}>Regístrate</Text>
+              <Text style={[styles.linkTextBold, { color: colors.primary }]}>Regístrate</Text>
             </Text>
           </TouchableOpacity>
         </View>
@@ -121,7 +123,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   inner: {
     flex: 1,
@@ -136,18 +137,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   backText: {
-    color: colors.textSecondary,
     fontSize: typography.size.md,
   },
   title: {
     fontSize: typography.size['2xl'],
     fontWeight: typography.weight.extrabold,
-    color: colors.textPrimary,
     marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: typography.size.md,
-    color: colors.textSecondary,
   },
   form: {
     gap: spacing.md,
@@ -158,33 +156,24 @@ const styles = StyleSheet.create({
   label: {
     fontSize: typography.size.sm,
     fontWeight: typography.weight.semibold,
-    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   input: {
-    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     fontSize: typography.size.md,
-    color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: colors.border,
-  },
-  inputError: {
-    borderColor: colors.error,
   },
   errorText: {
     fontSize: typography.size.sm,
-    color: colors.error,
   },
   actions: {
     gap: spacing.md,
     alignItems: 'center',
   },
   buttonPrimary: {
-    backgroundColor: colors.primary,
     borderRadius: radius.md,
     paddingVertical: spacing.md,
     alignItems: 'center',
@@ -194,17 +183,13 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonPrimaryText: {
-    color: colors.textInverse,
     fontSize: typography.size.lg,
     fontWeight: typography.weight.bold,
   },
   linkText: {
     fontSize: typography.size.md,
-    color: colors.textSecondary,
   },
   linkTextBold: {
-    color: colors.primary,
     fontWeight: typography.weight.bold,
   },
 })
-

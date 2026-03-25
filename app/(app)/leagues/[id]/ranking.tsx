@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useSession } from '../../../../hooks'
 import { supabase } from '../../../../lib/supabase'
-import { colors, typography, spacing, radius } from '../../../../constants'
+import { typography, spacing, radius } from '../../../../constants'
+import { useTheme } from '../../../../lib/ThemeContext'
 import type { League } from '../../../../types'
 
 // ── Tipos locales ─────────────────────────────────────────────────────────────
@@ -66,6 +67,7 @@ export default function RankingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { user } = useSession()
+  const { colors } = useTheme()
 
   const [league, setLeague] = useState<League | null>(null)
   const [ranking, setRanking] = useState<RankingEntry[]>([])
@@ -185,7 +187,7 @@ export default function RankingScreen() {
   // ── Render ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     )
@@ -193,29 +195,28 @@ export default function RankingScreen() {
 
   if (!league) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Liguilla no encontrada</Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.error }]}>Liguilla no encontrada</Text>
       </View>
     )
   }
 
-  // Pantalla de bloqueo si el usuario no tiene permiso
   if (!canViewRanking(league)) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.replace(`/(app)/leagues/${id}`)}>
-            <Text style={styles.backText}>← Volver</Text>
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.locked}>
           <Text style={styles.lockedEmoji}>🔒</Text>
-          <Text style={styles.lockedTitle}>Ranking bloqueado</Text>
-          <Text style={styles.lockedSubtitle}>
+          <Text style={[styles.lockedTitle, { color: colors.textPrimary }]}>Ranking bloqueado</Text>
+          <Text style={[styles.lockedSubtitle, { color: colors.textMuted }]}>
             El creador ha decidido que el ranking se revelará cuando finalice la liguilla.
           </Text>
           {league.end_date && (
-            <Text style={styles.lockedDate}>
+            <Text style={[styles.lockedDate, { color: colors.primary }]}>
               Disponible a partir del{' '}
               {new Date(league.end_date + 'T12:00:00').toLocaleDateString('es-ES', {
                 day: 'numeric', month: 'long', year: 'numeric',
@@ -230,7 +231,7 @@ export default function RankingScreen() {
   const isFinished = !!league.end_date && new Date() > new Date(league.end_date + 'T23:59:59')
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={ranking}
         keyExtractor={item => item.userId}
@@ -239,18 +240,18 @@ export default function RankingScreen() {
           <View>
             <View style={styles.header}>
               <TouchableOpacity onPress={() => router.replace(`/(app)/leagues/${id}`)}>
-                <Text style={styles.backText}>← Volver</Text>
+                <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
               </TouchableOpacity>
-              <Text style={styles.title}>🏆 Ranking</Text>
-              <Text style={styles.leagueName}>{league.name}</Text>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>🏆 Ranking</Text>
+              <Text style={[styles.leagueName, { color: colors.textMuted }]}>{league.name}</Text>
               {isFinished && (
-                <View style={styles.finishedBadge}>
-                  <Text style={styles.finishedBadgeText}>🏁 Liguilla finalizada — resultado definitivo</Text>
+                <View style={[styles.finishedBadge, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}>
+                  <Text style={[styles.finishedBadgeText, { color: colors.error }]}>🏁 Liguilla finalizada — resultado definitivo</Text>
                 </View>
               )}
               {!league.ranking_visible_during && !isFinished && (
-                <View style={styles.visibilityBadge}>
-                  <Text style={styles.visibilityBadgeText}>👁 Solo tú ves el ranking hasta el final</Text>
+                <View style={[styles.visibilityBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}>
+                  <Text style={[styles.visibilityBadgeText, { color: colors.primary }]}>👁 Solo tú ves el ranking hasta el final</Text>
                 </View>
               )}
             </View>
@@ -258,8 +259,8 @@ export default function RankingScreen() {
             {ranking.length === 0 && (
               <View style={styles.empty}>
                 <Text style={styles.emptyEmoji}>📊</Text>
-                <Text style={styles.emptyText}>Aún no hay resultados registrados</Text>
-                <Text style={styles.emptySubtext}>El ranking aparecerá cuando los participantes registren sus primeros intentos</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aún no hay resultados registrados</Text>
+                <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>El ranking aparecerá cuando los participantes registren sus primeros intentos</Text>
               </View>
             )}
           </View>
@@ -268,18 +269,22 @@ export default function RankingScreen() {
           const isMe = item.userId === user?.id
           const emoji = POSITION_EMOJI[item.position] ?? `${item.position}º`
           return (
-            <View style={[styles.row, isMe && styles.rowMe]}>
+            <View style={[
+              styles.row,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              isMe && { borderColor: colors.primary, backgroundColor: colors.primary + '0C' },
+            ]}>
               <Text style={styles.position}>{emoji}</Text>
               <View style={styles.rowInfo}>
-                <Text style={[styles.rowName, isMe && styles.rowNameMe]} numberOfLines={1}>
+                <Text style={[styles.rowName, { color: isMe ? colors.primary : colors.textPrimary }]} numberOfLines={1}>
                   {item.name}{isMe ? ' (tú)' : ''}
                 </Text>
-                <Text style={styles.rowStats}>
+                <Text style={[styles.rowStats, { color: colors.textMuted }]}>
                   {item.blocksCompleted} bloques · {item.flashes} flash
                   {item.totalGoes > 0 ? ` · ${item.totalGoes} pegues` : ''}
                 </Text>
               </View>
-              <Text style={[styles.rowScore, isMe && styles.rowScoreMe]}>
+              <Text style={[styles.rowScore, { color: isMe ? colors.primary : colors.textSecondary }]}>
                 {item.totalScore} pts
               </Text>
             </View>
@@ -288,7 +293,7 @@ export default function RankingScreen() {
         ListFooterComponent={
           ranking.length > 0 ? (
             <View style={styles.footer}>
-              <Text style={styles.footerText}>
+              <Text style={[styles.footerText, { color: colors.textMuted }]}>
                 {isFinished ? '🏁 Ranking final' : '🔄 Se actualiza en tiempo real'}
               </Text>
             </View>
@@ -302,37 +307,34 @@ export default function RankingScreen() {
 
 // ── Estilos ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container:          { flex: 1, backgroundColor: colors.background },
-  centered:           { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  container:          { flex: 1 },
+  centered:           { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content:            { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
   header:             { paddingTop: spacing.xl, marginBottom: spacing.lg },
-  backText:           { color: colors.textSecondary, fontSize: typography.size.md, marginBottom: spacing.md },
-  title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary },
-  leagueName:         { fontSize: typography.size.md, color: colors.textMuted, marginTop: spacing.xs },
-  finishedBadge:      { marginTop: spacing.sm, backgroundColor: colors.error + '18', borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.error + '40' },
-  finishedBadgeText:  { fontSize: typography.size.sm, color: colors.error, fontWeight: typography.weight.semibold },
-  visibilityBadge:    { marginTop: spacing.sm, backgroundColor: colors.primary + '18', borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.primary + '40' },
-  visibilityBadgeText:{ fontSize: typography.size.sm, color: colors.primary, fontWeight: typography.weight.semibold },
-  row:                { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm, gap: spacing.sm },
-  rowMe:              { borderColor: colors.primary, backgroundColor: colors.primary + '0C' },
+  backText:           { fontSize: typography.size.md, marginBottom: spacing.md },
+  title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
+  leagueName:         { fontSize: typography.size.md, marginTop: spacing.xs },
+  finishedBadge:      { marginTop: spacing.sm, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignSelf: 'flex-start', borderWidth: 1 },
+  finishedBadgeText:  { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  visibilityBadge:    { marginTop: spacing.sm, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignSelf: 'flex-start', borderWidth: 1 },
+  visibilityBadgeText:{ fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  row:                { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, padding: spacing.md, marginBottom: spacing.sm, gap: spacing.sm },
   position:           { fontSize: typography.size.xl, width: 36, textAlign: 'center' },
   rowInfo:            { flex: 1, gap: 2 },
-  rowName:            { fontSize: typography.size.md, fontWeight: typography.weight.semibold, color: colors.textPrimary },
-  rowNameMe:          { color: colors.primary },
-  rowStats:           { fontSize: typography.size.xs, color: colors.textMuted },
-  rowScore:           { fontSize: typography.size.lg, fontWeight: typography.weight.extrabold, color: colors.textSecondary },
-  rowScoreMe:         { color: colors.primary },
+  rowName:            { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
+  rowStats:           { fontSize: typography.size.xs },
+  rowScore:           { fontSize: typography.size.lg, fontWeight: typography.weight.extrabold },
   empty:              { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
   emptyEmoji:         { fontSize: 48 },
-  emptyText:          { fontSize: typography.size.md, color: colors.textSecondary, fontWeight: typography.weight.medium },
-  emptySubtext:       { fontSize: typography.size.sm, color: colors.textMuted, textAlign: 'center' },
+  emptyText:          { fontSize: typography.size.md, fontWeight: typography.weight.medium },
+  emptySubtext:       { fontSize: typography.size.sm, textAlign: 'center' },
   footer:             { alignItems: 'center', paddingTop: spacing.md },
-  footerText:         { fontSize: typography.size.xs, color: colors.textMuted },
+  footerText:         { fontSize: typography.size.xs },
   locked:             { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
   lockedEmoji:        { fontSize: 64 },
-  lockedTitle:        { fontSize: typography.size.xl, fontWeight: typography.weight.extrabold, color: colors.textPrimary, textAlign: 'center' },
-  lockedSubtitle:     { fontSize: typography.size.md, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
-  lockedDate:         { fontSize: typography.size.sm, color: colors.primary, fontWeight: typography.weight.semibold, textAlign: 'center' },
-  errorText:          { color: colors.error, fontSize: typography.size.md },
+  lockedTitle:        { fontSize: typography.size.xl, fontWeight: typography.weight.extrabold, textAlign: 'center' },
+  lockedSubtitle:     { fontSize: typography.size.md, textAlign: 'center', lineHeight: 22 },
+  lockedDate:         { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textAlign: 'center' },
+  errorText:          { fontSize: typography.size.md },
 })
 

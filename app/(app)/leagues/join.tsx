@@ -7,12 +7,14 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
-import { colors, typography, spacing, radius } from '../../../constants'
+import { typography, spacing, radius } from '../../../constants'
+import { useTheme } from '../../../lib/ThemeContext'
 import { Icon } from '../../../components'
 
 export default function JoinLeagueScreen() {
   const router = useRouter()
   const { user } = useSession()
+  const { colors } = useTheme()
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -86,20 +88,20 @@ export default function JoinLeagueScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.inner}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Icon name="arrow-back" size={24} color={colors.textSecondary} />
-            <Text style={styles.backText}>Volver</Text>
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Unirse a liguilla</Text>
-          <Text style={styles.subtitle}>Introduce el código que te han compartido</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Unirse a liguilla</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Introduce el código que te han compartido</Text>
         </View>
 
         <View style={styles.form}>
           <TextInput
-            style={[styles.codeInput, error ? styles.inputError : null]}
+            style={[styles.codeInput, { backgroundColor: colors.surfaceAlt, color: colors.primary, borderColor: error ? colors.error : colors.border }]}
             placeholder="ESCALA24"
             placeholderTextColor={colors.textMuted}
             value={code}
@@ -108,16 +110,16 @@ export default function JoinLeagueScreen() {
             autoCorrect={false}
             maxLength={20}
           />
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text> : null}
         </View>
 
         <TouchableOpacity
-          style={[styles.buttonPrimary, loading && styles.buttonDisabled]}
+          style={[styles.buttonPrimary, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
           onPress={handleJoin} activeOpacity={0.8} disabled={loading}
         >
           {loading
             ? <ActivityIndicator color={colors.textInverse} />
-            : <Text style={styles.buttonPrimaryText}>Unirse</Text>
+            : <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Unirse</Text>
           }
         </TouchableOpacity>
       </View>
@@ -126,24 +128,23 @@ export default function JoinLeagueScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:         { flex: 1, backgroundColor: colors.background },
+  container:         { flex: 1 },
   inner:             { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xl },
   header:            { marginBottom: spacing.xl },
   backButton:        { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.lg },
-  backText:          { color: colors.textSecondary, fontSize: typography.size.md },
-  title:             { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary, marginBottom: spacing.xs },
-  subtitle:          { fontSize: typography.size.md, color: colors.textSecondary },
+  backText:          { fontSize: typography.size.md },
+  title:             { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, marginBottom: spacing.xs },
+  subtitle:          { fontSize: typography.size.md },
   form:              { marginBottom: spacing.lg, gap: spacing.xs },
   codeInput:         {
-    backgroundColor: colors.surfaceAlt, borderRadius: radius.md,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.md, paddingVertical: spacing.lg,
     fontSize: typography.size['2xl'], fontWeight: typography.weight.bold,
-    color: colors.primary, borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1,
     textAlign: 'center', letterSpacing: 4,
   },
-  inputError:        { borderColor: colors.error },
-  errorText:         { fontSize: typography.size.sm, color: colors.error, textAlign: 'center' },
-  buttonPrimary:     { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center' },
+  errorText:         { fontSize: typography.size.sm, textAlign: 'center' },
+  buttonPrimary:     { borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center' },
   buttonDisabled:    { opacity: 0.6 },
-  buttonPrimaryText: { color: colors.textInverse, fontSize: typography.size.lg, fontWeight: typography.weight.bold },
+  buttonPrimaryText: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
 })

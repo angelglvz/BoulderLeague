@@ -1,26 +1,22 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, Clipboard,
-  Modal, Platform,
+  ActivityIndicator, Alert, Modal, Platform, ScrollView, Clipboard,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import DateTimePickerModal from 'react-native-modal-datetime-picker'
-import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist'
-import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
-import { colors, typography, spacing, radius } from '../../../constants'
+import { typography, spacing, radius } from '../../../constants'
+import { useTheme } from '../../../lib/ThemeContext'
 import { BlockCard, Icon } from '../../../components'
 import type { League, Block, Attempt } from '../../../types'
 
 // ── Helpers de fecha ─────────────────────────────────────────────────────────
 
-/** Convierte un Date a string ISO completo para guardar en BD (timestamptz) */
 function toISO(d: Date) { return d.toISOString() }
 
-/** Muestra fecha + hora en formato legible */
 function toDisplay(s: string | null) {
   if (!s) return null
   const d = new Date(s)
@@ -29,7 +25,6 @@ function toDisplay(s: string | null) {
   return `${fecha} a las ${hora}`
 }
 
-/** Snap de minutos al cuarto de hora más cercano (0, 15, 30, 45) */
 function snapToQuarter(d: Date): Date {
   const result = new Date(d)
   const mins = d.getMinutes()
@@ -41,7 +36,6 @@ function snapToQuarter(d: Date): Date {
 
 function pad2(n: number) { return String(n).padStart(2, '0') }
 
-// Opciones de hora: solo cuartos de hora → "00:00", "00:15", ..., "23:45"
 const HOUR_OPTIONS: string[] = []
 for (let h = 0; h < 24; h++) {
   for (const m of [0, 15, 30, 45]) {
@@ -50,23 +44,20 @@ for (let h = 0; h < 24; h++) {
 }
 
 // ── Componente DateField multiplataforma ─────────────────────────────────────
-function DateField({ value, onChange, placeholder, onPress, minDate }: {
+function DateField({ value, onChange, placeholder, onPress, minDate, colors }: {
   value: Date | null
   onChange: (d: Date) => void
   placeholder: string
   onPress: () => void
   minDate?: Date
+  colors: ReturnType<typeof useTheme>['colors']
 }) {
   if (Platform.OS === 'web') {
-    // Fecha como "YYYY-MM-DD"
     const dateStr = value
       ? `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`
       : ''
-
-    // Hora snapeada como "HH:MM"
     const snapped = value ? snapToQuarter(value) : null
     const timeStr = snapped ? `${pad2(snapped.getHours())}:${pad2(snapped.getMinutes())}` : '08:00'
-
     const minDateStr = minDate
       ? `${minDate.getFullYear()}-${pad2(minDate.getMonth() + 1)}-${pad2(minDate.getDate())}`
       : undefined
@@ -77,7 +68,6 @@ function DateField({ value, onChange, placeholder, onPress, minDate }: {
       const [h, mi]    = currentTime.split(':').map(Number)
       onChange(new Date(y, mo - 1, d, h, mi, 0, 0))
     }
-
     function applyTime(newTime: string, currentDateStr: string) {
       const [h, mi] = newTime.split(':').map(Number)
       if (currentDateStr) {
@@ -90,38 +80,21 @@ function DateField({ value, onChange, placeholder, onPress, minDate }: {
     }
 
     return (
-      <View style={[modalStyles.dateButton, { gap: 8 }]}>
-        {/* @ts-ignore — input HTML nativo en web */}
+      <View style={[dateFieldStyles.button, { backgroundColor: colors.surface, borderColor: colors.border, gap: 8 }]}>
+        {/* @ts-ignore */}
         <input
           type="date"
           value={dateStr}
           min={minDateStr}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            applyDate(e.target.value, timeStr)
-          }
-          style={{
-            flex: 1, background: 'transparent', border: 'none', outline: 'none',
-            color: '#FFFFFF',
-            colorScheme: 'dark',
-            fontSize: typography.size.md, cursor: 'pointer',
-          }}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => applyDate(e.target.value, timeStr)}
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#FFFFFF', colorScheme: 'dark', fontSize: typography.size.md, cursor: 'pointer' }}
         />
         <Icon name="time-outline" size={18} color={colors.textSecondary} />
-        {/* @ts-ignore — select HTML nativo en web */}
+        {/* @ts-ignore */}
         <select
           value={timeStr}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-            applyTime(e.target.value, dateStr)
-          }
-          style={{
-            background: colors.surfaceAlt,
-            border: `1px solid ${colors.border}`,
-            outline: 'none',
-            color: '#FFFFFF',
-            colorScheme: 'dark',
-            fontSize: typography.size.md, cursor: 'pointer',
-            borderRadius: 6, padding: '4px 8px',
-          }}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => applyTime(e.target.value, dateStr)}
+          style={{ background: colors.surfaceAlt, border: `1px solid ${colors.border}`, outline: 'none', color: '#FFFFFF', colorScheme: 'dark', fontSize: typography.size.md, cursor: 'pointer', borderRadius: 6, padding: '4px 8px' }}
         >
           {HOUR_OPTIONS.map(t => (
             // @ts-ignore
@@ -132,26 +105,32 @@ function DateField({ value, onChange, placeholder, onPress, minDate }: {
     )
   }
 
-  // ── Móvil ──
   const displayVal = value
     ? `${pad2(value.getDate())}/${pad2(value.getMonth() + 1)}/${value.getFullYear()} ` +
       `${pad2(snapToQuarter(value).getHours())}:${pad2(snapToQuarter(value).getMinutes())}`
     : ''
   return (
-    <TouchableOpacity style={modalStyles.dateButton} onPress={onPress} activeOpacity={0.8}>
-      <Text style={value ? modalStyles.dateText : modalStyles.datePlaceholder}>
+    <TouchableOpacity style={[dateFieldStyles.button, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={onPress} activeOpacity={0.8}>
+      <Text style={[dateFieldStyles.text, { color: value ? colors.textPrimary : colors.textMuted }]}>
         {displayVal || placeholder}
       </Text>
-      <Text style={modalStyles.dateIcon}>📅</Text>
+      <Text style={dateFieldStyles.icon}>📅</Text>
     </TouchableOpacity>
   )
 }
+
+const dateFieldStyles = StyleSheet.create({
+  button: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm },
+  text:   { fontSize: typography.size.md, flex: 1 },
+  icon:   { fontSize: 18 },
+})
 
 // ── Pantalla principal ────────────────────────────────────────────────────────
 export default function LeagueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { user } = useSession()
+  const { colors } = useTheme()
 
   const [league, setLeague] = useState<League | null>(null)
   const [blocks, setBlocks] = useState<Block[]>([])
@@ -160,7 +139,6 @@ export default function LeagueDetailScreen() {
   const [loading, setLoading] = useState(true)
   const blockIdsRef = useRef<string[]>([])
 
-  // Modal de iniciar liguilla
   const [showStartModal, setShowStartModal] = useState(false)
   const [startDate, setStartDate] = useState<Date | null>(null)
   const [endDate, setEndDate] = useState<Date | null>(null)
@@ -172,8 +150,8 @@ export default function LeagueDetailScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (id) fetchUserAttempts()
-    }, [id, user?.id])
+      if (id) fetchData()
+    }, [id])
   )
 
   async function fetchUserAttempts(blockIds?: string[]) {
@@ -183,10 +161,7 @@ export default function LeagueDetailScreen() {
     const ids = blockIds ?? blockIdsRef.current
     if (ids.length === 0) return
     const { data } = await supabase
-      .from('attempts')
-      .select('*')
-      .eq('user_id', uid)
-      .in('block_id', ids)
+      .from('attempts').select('*').eq('user_id', uid).in('block_id', ids)
     if (data) {
       const map: Record<string, Attempt> = {}
       for (const a of data) map[a.block_id] = a
@@ -196,18 +171,18 @@ export default function LeagueDetailScreen() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: leagueData }, { data: blocksData }, { count }] = await Promise.all([
+    const [{ data: leagueData }, { data: blocksData, error: blocksError }, { count }] = await Promise.all([
       supabase.from('leagues').select('*').eq('id', id).single(),
       supabase.from('blocks').select('*').eq('league_id', id).order('created_at'),
       supabase.from('league_participants').select('*', { count: 'exact', head: true }).eq('league_id', id),
     ])
     if (leagueData) setLeague(leagueData)
-    if (blocksData) {
-      setBlocks(blocksData)
-      const blockIds = blocksData.map((b: Block) => b.id)
-      blockIdsRef.current = blockIds
-      await fetchUserAttempts(blockIds)
-    }
+    if (blocksError) console.error('Error cargando bloques:', blocksError)
+    const safeBlocks = blocksData ?? []
+    setBlocks(safeBlocks)
+    const blockIds = safeBlocks.map((b: Block) => b.id)
+    blockIdsRef.current = blockIds
+    if (blockIds.length > 0) await fetchUserAttempts(blockIds)
     if (count !== null) setParticipantCount(count)
     setLoading(false)
   }
@@ -218,7 +193,6 @@ export default function LeagueDetailScreen() {
     Alert.alert('¡Copiado! 📋', `Código "${league.access_code}" copiado al portapapeles.`)
   }
 
-  // ── Modal iniciar liguilla ───────────────────────────────────────────────
   function openStartModal() {
     setStartDate(league?.start_date ? new Date(league.start_date) : null)
     setEndDate(league?.end_date ? new Date(league.end_date) : null)
@@ -234,7 +208,6 @@ export default function LeagueDetailScreen() {
     setDateErrors(e)
     if (Object.keys(e).length > 0) return
 
-    // Snap a cuartos de hora antes de guardar
     const finalStart = snapToQuarter(startDate!)
     const finalEnd   = snapToQuarter(endDate!)
 
@@ -246,22 +219,14 @@ export default function LeagueDetailScreen() {
     setSavingDates(false)
 
     if (error) {
-      console.error('Error al guardar fechas:', error)
-      Alert.alert(
-        'Error al guardar',
-        `No se pudieron guardar las fechas.\n\n${error.message ?? error.code ?? 'Error desconocido'}\n\nAsegúrate de haber ejecutado la migración de BD (start_date/end_date a TIMESTAMPTZ).`
-      )
+      Alert.alert('Error al guardar', `No se pudieron guardar las fechas.\n\n${error.message ?? error.code ?? 'Error desconocido'}`)
       return
     }
 
-    setLeague(prev => prev
-      ? { ...prev, start_date: toISO(finalStart), end_date: toISO(finalEnd) }
-      : prev
-    )
+    setLeague(prev => prev ? { ...prev, start_date: toISO(finalStart), end_date: toISO(finalEnd) } : prev)
     setShowStartModal(false)
   }
 
-  // ── Estado de la liguilla ────────────────────────────────────────────────
   function getLeagueStatus(): { label: string; color: string } | null {
     if (!league?.start_date || !league?.end_date) return null
     const now = new Date()
@@ -269,67 +234,62 @@ export default function LeagueDetailScreen() {
     const end = new Date(league.end_date)
     if (now < start) return { label: '⏳ Pendiente de inicio', color: colors.textMuted }
     if (now > end)   return { label: '🏁 Finalizada', color: colors.error }
-    return { label: '🟢 En curso', color: colors.success ?? colors.primary }
+    return { label: '🟢 En curso', color: colors.success }
   }
 
   const isCreator = user?.id === league?.creator_id
   const leagueStatus = getLeagueStatus()
-
-  // La liga ya tiene fechas asignadas (aunque sean futuras) → ocultar botón "Iniciar"
   const hasDates = !!league?.start_date && !!league?.end_date
-
-  // La liga ya ha comenzado realmente → bloquear edición de bloques (añadir/borrar/reordenar)
-  const isInProgress = hasDates && new Date() >= new Date(league!.start_date!)
+  const isInProgress = hasDates && new Date() >= new Date(league?.start_date ?? '')
 
   // ── Borrar bloque ────────────────────────────────────────────────────────
-  const handleDeleteBlock = useCallback((block: Block) => {
+  function handleDeleteBlock(block: Block) {
     Alert.alert(
       '⚠️ Borrar bloque',
-      `Se eliminarán la foto y todos los resultados registrados de "${block.identifier}". Esta acción no se puede deshacer.`,
+      `Se eliminarán la foto y todos los resultados de "${block.identifier}". Esta acción no se puede deshacer.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Borrar definitivamente',
           style: 'destructive',
           onPress: async () => {
-            // 1. Borrar foto de Storage
             try {
-              const url = block.photo_url
-              const path = url.split('/block-photos/')[1]
-              if (path) {
-                await supabase.storage.from('block-photos').remove([path])
-              }
-            } catch (_) { /* si falla el borrado de la foto, continuamos */ }
+              const path = block.photo_url?.split('/block-photos/')[1]
+              if (path) await supabase.storage.from('block-photos').remove([path])
+            } catch (_e) { /* continuar aunque falle el borrado de foto */ }
 
-            // 2. Borrar fila (attempts se borran en cascada por FK)
             const { error } = await supabase.from('blocks').delete().eq('id', block.id)
-            if (error) {
-              Alert.alert('Error', 'No se pudo borrar el bloque')
-              return
-            }
-
-            // 3. Actualizar lista local
+            if (error) { Alert.alert('Error', 'No se pudo borrar el bloque'); return }
             setBlocks(prev => prev.filter(b => b.id !== block.id))
           },
         },
       ]
     )
-  }, [])
+  }
 
-  // ── Drag & drop — guardar nuevo orden en BD ──────────────────────────────
-  const handleDragEnd = useCallback(async ({ data }: { data: Block[] }) => {
-    setBlocks(data)
-    // Persistir posiciones en BD
-    const updates = data.map((b, i) =>
-      supabase.from('blocks').update({ position: i }).eq('id', b.id)
-    )
-    await Promise.all(updates)
-  }, [])
+  // ── Mover bloque con flechas ─────────────────────────────────────────────
+  async function moveBlock(index: number, direction: 'up' | 'down') {
+    const newBlocks = [...blocks]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= newBlocks.length) return
+
+    // Intercambiar posiciones
+    const temp = newBlocks[index]
+    newBlocks[index] = newBlocks[targetIndex]
+    newBlocks[targetIndex] = temp
+    setBlocks(newBlocks)
+
+    // Persistir en BD
+    await Promise.all([
+      supabase.from('blocks').update({ position: index }).eq('id', newBlocks[index].id),
+      supabase.from('blocks').update({ position: targetIndex }).eq('id', newBlocks[targetIndex].id),
+    ])
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     )
@@ -337,244 +297,207 @@ export default function LeagueDetailScreen() {
 
   if (!league) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Liguilla no encontrada</Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.error }]}>Liguilla no encontrada</Text>
       </View>
     )
   }
 
+  const MIN_BLOCKS = 5
+  const canStart = blocks.length >= MIN_BLOCKS
+  const remaining = MIN_BLOCKS - blocks.length
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-    <SafeAreaView style={styles.container}>
-      <DraggableFlatList
-        data={blocks}
-        keyExtractor={item => item.id}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <View>
-            {/* Header */}
-            <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.replace('/(app)')} style={styles.backButton}>
-                <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
-                <Text style={styles.backText}>Volver</Text>
-              </TouchableOpacity>
-              <View style={styles.titleRow}>
-                <Text style={styles.title} numberOfLines={2}>{league.name}</Text>
-                <TouchableOpacity
-                  style={styles.rankingButton}
-                  onPress={() => router.push(`/(app)/leagues/${league.id}/ranking`)}
-                >
-                  <Icon name="trophy-outline" size={16} color={colors.textInverse} style={{ marginRight: 4 }} />
-                  <Text style={styles.rankingButtonText}>Ranking</Text>
-                </TouchableOpacity>
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.replace('/(app)')} style={styles.backButton}>
+            <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
+          </TouchableOpacity>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>{league.name}</Text>
+            <TouchableOpacity
+              style={[styles.rankingButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push(`/(app)/leagues/${league.id}/ranking`)}
+            >
+              <Icon name="trophy-outline" size={16} color={colors.textInverse} style={{ marginRight: 4 }} />
+              <Text style={[styles.rankingButtonText, { color: colors.textInverse }]}>Ranking</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Info card */}
+        <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {leagueStatus && <InfoRow label="Estado" value={leagueStatus.label} valueColor={leagueStatus.color} colors={colors} />}
+          {league.start_date && <InfoRow label="📅 Inicio" value={toDisplay(league.start_date) ?? ''} colors={colors} />}
+          {league.end_date   && <InfoRow label="🏁 Fin"    value={toDisplay(league.end_date) ?? ''} colors={colors} />}
+          <InfoRow
+            label="👥 Participantes"
+            value={league.max_participants
+              ? `${participantCount} / ${league.max_participants}`
+              : `${participantCount}`}
+            colors={colors}
+          />
+          {league.reward && <InfoRow label="🏆 Recompensa" value={league.reward} colors={colors} />}
+          {isCreator ? (
+            <InfoRow
+              label="👁 Ranking"
+              value={league.ranking_visible_during ? 'Visible durante la liguilla' : 'Solo visible al terminar'}
+              valueColor={league.ranking_visible_during ? colors.success : colors.textMuted}
+              colors={colors}
+            />
+          ) : (
+            !league.ranking_visible_during && (
+              <InfoRow label="👁 Ranking" value="Se revelará al terminar 🔒" valueColor={colors.textMuted} colors={colors} />
+            )
+          )}
+        </View>
+
+        {/* Botón iniciar — solo creador, sin fechas */}
+        {isCreator && !hasDates && (
+          <View style={styles.startSection}>
+            {!canStart && (
+              <View style={[styles.startHintRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={styles.startHintEmoji}>🧱</Text>
+                <Text style={[styles.startHintText, { color: colors.textSecondary }]}>
+                  {remaining === 1
+                    ? 'Falta 1 bloque para poder iniciar'
+                    : `Faltan ${remaining} bloques para poder iniciar`}
+                </Text>
               </View>
+            )}
+            <TouchableOpacity
+              style={[styles.startButton, { backgroundColor: colors.primary }, !canStart && { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }]}
+              onPress={canStart ? openStartModal : undefined}
+              activeOpacity={canStart ? 0.8 : 1}
+            >
+              <Icon name="play-circle-outline" size={18} color={canStart ? colors.textInverse : colors.textMuted} style={{ marginRight: 6 }} />
+              <Text style={[styles.startButtonText, { color: canStart ? colors.textInverse : colors.textMuted }]}>
+                Iniciar liguilla
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Botón editar fechas */}
+        {isCreator && hasDates && !isInProgress && (
+          <View style={styles.startSection}>
+            <TouchableOpacity style={[styles.startButton, { backgroundColor: colors.primary }]} onPress={openStartModal} activeOpacity={0.8}>
+              <Icon name="create-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
+              <Text style={[styles.startButtonText, { color: colors.textInverse }]}>Editar fechas</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Compartir código */}
+        {league.access_code && (
+          <TouchableOpacity style={[styles.shareButton, { backgroundColor: colors.surface, borderColor: colors.primary }]} onPress={handleShare} activeOpacity={0.8}>
+            <Text style={[styles.shareCode, { color: colors.primary }]}>{league.access_code}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Icon name="copy-outline" size={14} color={colors.textMuted} />
+              <Text style={[styles.shareLabel, { color: colors.textMuted }]}>Toca para copiar el código</Text>
             </View>
+          </TouchableOpacity>
+        )}
 
-            {/* Info */}
-            <View style={styles.infoCard}>
-              {leagueStatus ? (
-                <InfoRow label="Estado" value={leagueStatus.label} valueColor={leagueStatus.color} />
-              ) : null}
-              {league.start_date && (
-                <InfoRow label="📅 Inicio" value={toDisplay(league.start_date) ?? ''} />
-              )}
-              {league.end_date && (
-                <InfoRow label="🏁 Fin" value={toDisplay(league.end_date) ?? ''} />
-              )}
-              <InfoRow
-                label="👥 Participantes"
-                value={`${participantCount}${league.max_participants ? ` / ${league.max_participants}` : ''}`}
-              />
-              {league.reward && <InfoRow label="🏆 Recompensa" value={league.reward} />}
-              {/* Badge de visibilidad del ranking */}
-              {isCreator ? (
-                <InfoRow
-                  label="👁 Ranking"
-                  value={league.ranking_visible_during ? 'Visible para todos durante la liguilla' : 'Solo visible al terminar'}
-                  valueColor={league.ranking_visible_during ? (colors.success ?? colors.primary) : colors.textMuted}
-                />
-              ) : !league.ranking_visible_during ? (
-                <InfoRow
-                  label="👁 Ranking"
-                  value="Se revelará al terminar la liguilla 🔒"
-                  valueColor={colors.textMuted}
-                />
-              ) : null}
-            </View>
+        {/* Bloques header */}
+        <View style={styles.blocksHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Bloques ({blocks.length})</Text>
+          {isCreator && !isInProgress && (
+            <TouchableOpacity
+              style={[styles.addBlockButton, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+              onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
+            >
+              <Icon name="add-circle-outline" size={18} color={colors.primary} style={{ marginRight: 4 }} />
+              <Text style={[styles.addBlockText, { color: colors.primary }]}>Añadir</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-            {/* Botón iniciar/editar fechas — solo creador, solo si la liga NO tiene fechas aún */}
-            {isCreator && !hasDates && (() => {
-              const MIN_BLOCKS = 5
-              const remaining = MIN_BLOCKS - blocks.length
-              const canStart = blocks.length >= MIN_BLOCKS
-
-              return (
-                <View style={styles.startSection}>
-                  {!canStart && (
-                    <View style={styles.startHintRow}>
-                      <Text style={styles.startHintEmoji}>🧱</Text>
-                      <Text style={styles.startHintText}>
-                        {remaining === 1
-                          ? 'Falta 1 bloque para poder iniciar'
-                          : `Faltan ${remaining} bloques para poder iniciar`}
-                      </Text>
-                    </View>
-                  )}
+        {/* Lista de bloques */}
+        {blocks.length === 0 ? (
+          <View style={styles.emptyBlocks}>
+            <Icon name="grid-outline" size={48} color={colors.textMuted} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aún no hay bloques</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Añade el primer bloque de la liguilla</Text>
+          </View>
+        ) : (
+          blocks.map((block, index) => (
+            <View key={block.id} style={styles.blockRow}>
+              {isCreator && !isInProgress && (
+                <View style={styles.arrowColumn}>
                   <TouchableOpacity
-                    style={[styles.startButton, !canStart && styles.startButtonDisabled]}
-                    onPress={canStart ? openStartModal : undefined}
-                    activeOpacity={canStart ? 0.8 : 1}
+                    style={[styles.arrowBtn, { backgroundColor: colors.surface, borderColor: colors.border }, index === 0 && styles.arrowBtnDisabled]}
+                    onPress={() => moveBlock(index, 'up')}
+                    disabled={index === 0}
                   >
-                    <Icon
-                      name="play-circle-outline"
-                      size={18}
-                      color={canStart ? colors.textInverse : colors.textMuted}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text style={[styles.startButtonText, !canStart && styles.startButtonTextDisabled]}>
-                      Iniciar liguilla
-                    </Text>
+                    <Icon name="chevron-up-outline" size={18} color={index === 0 ? colors.textMuted : colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.arrowBtn, { backgroundColor: colors.surface, borderColor: colors.border }, index === blocks.length - 1 && styles.arrowBtnDisabled]}
+                    onPress={() => moveBlock(index, 'down')}
+                    disabled={index === blocks.length - 1}
+                  >
+                    <Icon name="chevron-down-outline" size={18} color={index === blocks.length - 1 ? colors.textMuted : colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
-              )
-            })()}
-
-            {/* Botón editar fechas — solo creador, tiene fechas pero aún no ha comenzado */}
-            {isCreator && hasDates && !isInProgress && (
-              <View style={styles.startSection}>
-                <TouchableOpacity
-                  style={styles.startButton}
-                  onPress={openStartModal}
-                  activeOpacity={0.8}
-                >
-                  <Icon name="create-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
-                  <Text style={styles.startButtonText}>Editar fechas</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Compartir */}
-            {league.access_code && (
-              <TouchableOpacity style={styles.shareButton} onPress={handleShare} activeOpacity={0.8}>
-                <Text style={styles.shareCode}>{league.access_code}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Icon name="copy-outline" size={14} color={colors.textMuted} />
-                  <Text style={styles.shareLabel}>Toca para copiar el código</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {/* Bloques header */}
-            <View style={styles.blocksHeader}>
-              <Text style={styles.sectionTitle}>Bloques ({blocks.length})</Text>
-              {isCreator && !isInProgress && (
-                <TouchableOpacity
-                  style={styles.addBlockButton}
-                  onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
-                >
-                  <Icon name="add-circle-outline" size={18} color={colors.primary} style={{ marginRight: 4 }} />
-                  <Text style={styles.addBlockText}>Añadir</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        }
-        renderItem={({ item, drag, isActive }: RenderItemParams<Block>) => (
-          <ScaleDecorator>
-            <View style={[styles.blockRow, isActive && styles.blockRowDragging]}>
-              {/* Drag handle — solo si la liga no ha comenzado */}
-              {isCreator && !isInProgress && (
-                <TouchableOpacity
-                  style={styles.dragHandle}
-                  onLongPress={drag}
-                  delayLongPress={100}
-                >
-                  <Icon name="reorder-three-outline" size={22} color={colors.textMuted} />
-                </TouchableOpacity>
               )}
 
-              {/* Card */}
               <View style={styles.blockCardWrapper}>
                 <BlockCard
-                  block={item}
-                  attempt={userAttempts[item.id] ?? null}
-                  onPress={() => router.push(`/(app)/blocks/${item.id}`)}
+                  block={block}
+                  attempt={userAttempts[block.id] ?? null}
+                  onPress={() => router.push(`/(app)/blocks/${block.id}`)}
                 />
               </View>
 
-              {/* Botón borrar — solo si la liga no ha comenzado */}
               {isCreator && !isInProgress && (
-                <TouchableOpacity
-                  style={styles.deleteHandle}
-                  onPress={() => handleDeleteBlock(item)}
-                >
+                <TouchableOpacity style={styles.deleteHandle} onPress={() => handleDeleteBlock(block)}>
                   <Icon name="trash-outline" size={20} color={colors.error} />
                 </TouchableOpacity>
               )}
             </View>
-          </ScaleDecorator>
+          ))
         )}
-        onDragEnd={isCreator && !isInProgress ? handleDragEnd : undefined}
-        ListEmptyComponent={
-          <View style={styles.emptyBlocks}>
-            <Icon name="grid-outline" size={48} color={colors.textMuted} />
-            <Text style={styles.emptyText}>Aún no hay bloques</Text>
-            <Text style={styles.emptySubtext}>Añade el primer bloque de la liguilla</Text>
-          </View>
-        }
-        contentContainerStyle={styles.content}
-      />
+      </ScrollView>
 
       {/* ── Modal iniciar liguilla ─────────────────────────────────────────── */}
-      <Modal
-        visible={showStartModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowStartModal(false)}
-      >
-        <View style={modalStyles.overlay}>
-          <View style={modalStyles.card}>
-            <Text style={modalStyles.title}>
+      <Modal visible={showStartModal} transparent animationType="fade" onRequestClose={() => setShowStartModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.background }]}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
               {league.start_date ? 'Editar fechas' : 'Iniciar liguilla'}
             </Text>
-            <Text style={modalStyles.subtitle}>
+            <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
               Define el período de la liguilla. Los participantes podrán registrar resultados durante estas fechas.
             </Text>
 
-            <Text style={modalStyles.label}>Fecha y hora de inicio</Text>
-            <DateField
-              value={startDate}
-              onChange={setStartDate}
-              placeholder="DD/MM/AAAA HH:MM"
-              onPress={() => setPickerTarget('start')}
-            />
-            {dateErrors.start && <Text style={modalStyles.error}>{dateErrors.start}</Text>}
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>Fecha y hora de inicio</Text>
+            <DateField value={startDate} onChange={setStartDate} placeholder="DD/MM/AAAA HH:MM" onPress={() => setPickerTarget('start')} colors={colors} />
+            {dateErrors.start && <Text style={[styles.modalError, { color: colors.error }]}>{dateErrors.start}</Text>}
 
-            <Text style={[modalStyles.label, { marginTop: spacing.md }]}>Fecha y hora de fin</Text>
-            <DateField
-              value={endDate}
-              onChange={setEndDate}
-              placeholder="DD/MM/AAAA HH:MM"
-              onPress={() => setPickerTarget('end')}
-              minDate={startDate ?? undefined}
-            />
-            {dateErrors.end && <Text style={modalStyles.error}>{dateErrors.end}</Text>}
+            <Text style={[styles.modalLabel, { color: colors.textSecondary, marginTop: spacing.md }]}>Fecha y hora de fin</Text>
+            <DateField value={endDate} onChange={setEndDate} placeholder="DD/MM/AAAA HH:MM" onPress={() => setPickerTarget('end')} minDate={startDate ?? undefined} colors={colors} />
+            {dateErrors.end && <Text style={[styles.modalError, { color: colors.error }]}>{dateErrors.end}</Text>}
 
-            <View style={modalStyles.buttons}>
-              <TouchableOpacity
-                style={modalStyles.cancelBtn}
-                onPress={() => setShowStartModal(false)}
-              >
-                <Text style={modalStyles.cancelText}>Cancelar</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={[styles.cancelBtn, { borderColor: colors.border }]} onPress={() => setShowStartModal(false)}>
+                <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[modalStyles.confirmBtn, savingDates && modalStyles.btnDisabled]}
+                style={[styles.confirmBtn, { backgroundColor: colors.primary }, savingDates && styles.btnDisabled]}
                 onPress={handleSaveDates}
                 disabled={savingDates}
               >
                 {savingDates
                   ? <ActivityIndicator color={colors.textInverse} />
-                  : <Text style={modalStyles.confirmText}>Iniciar</Text>
+                  : <Text style={[styles.confirmText, { color: colors.textInverse }]}>Iniciar</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -582,16 +505,15 @@ export default function LeagueDetailScreen() {
         </View>
       </Modal>
 
-      {/* Date picker modal — solo móvil */}
       {Platform.OS !== 'web' && (
         <DateTimePickerModal
           isVisible={pickerTarget !== null}
           mode="datetime"
           minimumDate={pickerTarget === 'end' && startDate ? startDate : new Date()}
           date={
-            pickerTarget === 'end' && endDate ? endDate :
-            pickerTarget === 'start' && startDate ? startDate :
-            new Date()
+            pickerTarget === 'end' && endDate ? endDate
+            : pickerTarget === 'start' && startDate ? startDate
+            : new Date()
           }
           onConfirm={(date) => {
             if (pickerTarget === 'start') setStartDate(date)
@@ -603,79 +525,73 @@ export default function LeagueDetailScreen() {
         />
       )}
     </SafeAreaView>
-    </GestureHandlerRootView>
   )
 }
 
-function InfoRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+type ThemeColors = ReturnType<typeof useTheme>['colors']
+
+function InfoRow({ label, value, valueColor, colors }: { label: string; value: string; valueColor?: string; colors: ThemeColors }) {
   return (
     <View style={infoStyles.row}>
-      <Text style={infoStyles.label}>{label}</Text>
-      <Text style={[infoStyles.value, valueColor ? { color: valueColor } : null]}>{value}</Text>
+      <Text style={[infoStyles.label, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[infoStyles.value, { color: valueColor ?? colors.textPrimary }]}>{value}</Text>
     </View>
   )
 }
 
 // ── Estilos ──────────────────────────────────────────────────────────────────
 const infoStyles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
-  label: { fontSize: typography.size.sm, color: colors.textSecondary, fontWeight: typography.weight.medium },
-  value: { fontSize: typography.size.sm, color: colors.textPrimary, flex: 1, textAlign: 'right' },
+  row:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
+  label: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  value: { fontSize: typography.size.sm, flex: 1, textAlign: 'right' },
 })
 
 const styles = StyleSheet.create({
-  container:            { flex: 1, backgroundColor: colors.background },
-  centered:             { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
-  content:              { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
-  header:               { paddingTop: spacing.xl, marginBottom: spacing.md },
-  backButton:           { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.md },
-  backText:             { color: colors.textSecondary, fontSize: typography.size.md },
-  titleRow:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
-  title:                { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary, flex: 1 },
-  rankingButton:        { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  rankingButtonText:    { fontSize: typography.size.sm, color: colors.textInverse, fontWeight: typography.weight.bold },
-  infoCard:             { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: spacing.sm, marginBottom: spacing.md },
-  startSection:         { marginBottom: spacing.md, gap: spacing.xs },
-  startHintRow:         { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.surface, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border },
-  startHintEmoji:       { fontSize: 16 },
-  startHintText:        { fontSize: typography.size.sm, color: colors.textSecondary, flex: 1 },
-  startButton:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.sm },
-  startButtonDisabled:  { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
-  startButtonText:      { color: colors.textInverse, fontWeight: typography.weight.bold, fontSize: typography.size.md },
-  startButtonTextDisabled: { color: colors.textMuted },
-  shareButton:          { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.primary, alignItems: 'center', gap: spacing.xs, marginBottom: spacing.lg },
-  shareCode:            { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.primary, letterSpacing: 4 },
-  shareLabel:           { fontSize: typography.size.sm, color: colors.textMuted },
-  blocksHeader:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  sectionTitle:         { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  addBlockButton:       { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.primary, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-  addBlockText:         { color: colors.primary, fontWeight: typography.weight.bold, fontSize: typography.size.sm },
-  blockRow:             { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
-  blockRowDragging:     { opacity: 0.85, backgroundColor: colors.surfaceAlt, borderRadius: radius.md },
-  dragHandle:           { padding: spacing.xs, alignItems: 'center', justifyContent: 'center', width: 32, height: 48 },
-  blockCardWrapper:     { flex: 1 },
-  deleteHandle:         { padding: spacing.xs, alignItems: 'center', justifyContent: 'center', width: 36, height: 48 },
-  emptyBlocks:          { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
-  emptyText:            { fontSize: typography.size.md, color: colors.textSecondary, fontWeight: typography.weight.medium },
-  emptySubtext:         { fontSize: typography.size.sm, color: colors.textMuted },
-  errorText:            { color: colors.error, fontSize: typography.size.md },
-})
-
-const modalStyles = StyleSheet.create({
-  overlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
-  card:          { backgroundColor: colors.background, borderRadius: radius.xl, padding: spacing.lg, width: '100%', maxWidth: 420, gap: spacing.sm },
-  title:         { fontSize: typography.size.xl, fontWeight: typography.weight.extrabold, color: colors.textPrimary },
-  subtitle:      { fontSize: typography.size.sm, color: colors.textMuted, marginBottom: spacing.xs },
-  label:         { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  error:         { fontSize: typography.size.sm, color: colors.error },
-  dateButton:    { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm },
-  dateText:      { fontSize: typography.size.md, color: colors.textPrimary, flex: 1 },
-  datePlaceholder: { fontSize: typography.size.md, color: colors.textMuted, flex: 1 },
-  dateIcon:      { fontSize: 18 },
-  buttons:       { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  cancelBtn:     { flex: 1, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.sm, alignItems: 'center' },
-  cancelText:    { color: colors.textSecondary, fontWeight: typography.weight.semibold },
-  confirmBtn:    { flex: 1, borderRadius: radius.md, backgroundColor: colors.primary, paddingVertical: spacing.sm, alignItems: 'center' },
-  confirmText:   { color: colors.textInverse, fontWeight: typography.weight.bold },
-  btnDisabled:   { opacity: 0.6 },
+  container:               { flex: 1 },
+  centered:                { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  content:                 { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
+  header:                  { paddingTop: spacing.xl, marginBottom: spacing.md },
+  backButton:              { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.md },
+  backText:                { fontSize: typography.size.md },
+  titleRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
+  title:                   { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, flex: 1 },
+  rankingButton:           { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  rankingButtonText:       { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
+  infoCard:                { borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, gap: spacing.sm, marginBottom: spacing.md },
+  startSection:            { marginBottom: spacing.md, gap: spacing.xs },
+  startHintRow:            { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1 },
+  startHintEmoji:          { fontSize: 16 },
+  startHintText:           { fontSize: typography.size.sm, flex: 1 },
+  startButton:             { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, paddingVertical: spacing.sm },
+  startButtonText:         { fontWeight: typography.weight.bold, fontSize: typography.size.md },
+  shareButton:             { borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, alignItems: 'center', gap: spacing.xs, marginBottom: spacing.lg },
+  shareCode:               { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, letterSpacing: 4 },
+  shareLabel:              { fontSize: typography.size.sm },
+  blocksHeader:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  sectionTitle:            { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  addBlockButton:          { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  addBlockText:            { fontWeight: typography.weight.bold, fontSize: typography.size.sm },
+  blockRow:                { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
+  arrowColumn:             { flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, width: 32 },
+  arrowBtn:                { padding: 4, borderRadius: radius.sm, borderWidth: 1 },
+  arrowBtnDisabled:        { opacity: 0.3 },
+  blockCardWrapper:        { flex: 1 },
+  deleteHandle:            { padding: spacing.xs, alignItems: 'center', justifyContent: 'center', width: 36, height: 48 },
+  emptyBlocks:             { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
+  emptyText:               { fontSize: typography.size.md, fontWeight: typography.weight.medium },
+  emptySubtext:            { fontSize: typography.size.sm },
+  errorText:               { fontSize: typography.size.md },
+  // Modal styles
+  modalOverlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
+  modalCard:      { borderRadius: radius.xl, padding: spacing.lg, width: '100%', maxWidth: 420, gap: spacing.sm },
+  modalTitle:     { fontSize: typography.size.xl, fontWeight: typography.weight.extrabold },
+  modalSubtitle:  { fontSize: typography.size.sm, marginBottom: spacing.xs },
+  modalLabel:     { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  modalError:     { fontSize: typography.size.sm },
+  modalButtons:   { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  cancelBtn:      { flex: 1, borderRadius: radius.md, borderWidth: 1, paddingVertical: spacing.sm, alignItems: 'center' },
+  cancelText:     { fontWeight: typography.weight.semibold },
+  confirmBtn:     { flex: 1, borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: 'center' },
+  confirmText:    { fontWeight: typography.weight.bold },
+  btnDisabled:    { opacity: 0.6 },
 })

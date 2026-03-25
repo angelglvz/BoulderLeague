@@ -8,7 +8,7 @@
  */
 
 import Ionicons from '@expo/vector-icons/Ionicons'
-import { colors } from '../constants'
+import { useTheme } from '../lib/ThemeContext'
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
 
@@ -22,17 +22,6 @@ type ColorAlias =
   | 'textSecondary'
   | 'textMuted'
 
-const COLOR_MAP: Record<ColorAlias, string> = {
-  primary:       colors.primary,
-  accent:        colors.accent,
-  success:       colors.success,
-  error:         colors.error,
-  warning:       colors.warning,
-  textPrimary:   colors.textPrimary,
-  textSecondary: colors.textSecondary,
-  textMuted:     colors.textMuted,
-}
-
 interface IconProps {
   name: IoniconsName
   size?: number
@@ -42,6 +31,19 @@ interface IconProps {
 }
 
 export function Icon({ name, size = 20, color = 'textSecondary', style }: IconProps) {
+  const { colors } = useTheme()
+
+  const COLOR_MAP: Record<ColorAlias, string> = {
+    primary:       colors.primary,
+    accent:        colors.accent,
+    success:       colors.success,
+    error:         colors.error,
+    warning:       colors.warning,
+    textPrimary:   colors.textPrimary,
+    textSecondary: colors.textSecondary,
+    textMuted:     colors.textMuted,
+  }
+
   const resolvedColor = COLOR_MAP[color as ColorAlias] ?? color
   return (
     <Ionicons
