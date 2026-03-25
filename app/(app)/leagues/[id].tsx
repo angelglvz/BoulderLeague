@@ -425,7 +425,11 @@ export default function LeagueDetailScreen() {
           <View style={styles.emptyBlocks}>
             <Icon name="grid-outline" size={48} color={colors.textMuted} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aún no hay bloques</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Añade el primer bloque de la liguilla</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>
+              {isCreator
+                ? 'Añade bloques con el botón "Añadir" para empezar a preparar la liguilla'
+                : 'El organizador aún no ha añadido bloques a esta liguilla'}
+            </Text>
           </View>
         ) : (
           blocks.map((block, index) => (

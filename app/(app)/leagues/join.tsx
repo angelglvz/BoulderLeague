@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  TextInput, ActivityIndicator, Alert,
+  TextInput, ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -64,9 +64,8 @@ export default function JoinLeagueScreen() {
 
     if (existing) {
       setLoading(false)
-      Alert.alert('Ya participas', 'Ya estás apuntado a esta liguilla.', [
-        { text: 'Ver liguilla', onPress: () => router.replace(`/(app)/leagues/${league.id}`) },
-      ])
+      // Ya participas: navegar directamente a la liguilla
+      router.replace(`/(app)/leagues/${league.id}`)
       return
     }
 
@@ -82,9 +81,8 @@ export default function JoinLeagueScreen() {
       return
     }
 
-    Alert.alert('¡Te has unido! 🧗', `Bienvenido a "${league.name}"`, [
-      { text: 'Ver liguilla', onPress: () => router.replace(`/(app)/leagues/${league.id}`) },
-    ])
+    // Navegar directamente a la liguilla
+    router.replace(`/(app)/leagues/${league.id}`)
   }
 
   return (

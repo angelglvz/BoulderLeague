@@ -38,6 +38,8 @@ export default function AddBlockScreen() {
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [imageUri, setImageUri] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null)
+  const [errors, setErrors] = useState<{ identifier?: string; image?: string; general?: string }>({})
 
   // ─── Seleccionar imagen ───────────────────────────────────────────────────
   async function pickImage() {
@@ -140,18 +142,18 @@ export default function AddBlockScreen() {
 
   // ─── Guardar bloque ───────────────────────────────────────────────────────
   async function handleSave() {
-    if (!identifier.trim()) {
-      Alert.alert('Campo obligatorio', 'Añade un identificador al bloque.')
-      return
-    }
-    if (!imageUri) {
-      Alert.alert('Foto obligatoria', 'Selecciona una foto para el bloque.')
-      return
-    }
+    const newErrors: { identifier?: string; image?: string; general?: string } = {}
+    if (!identifier.trim()) newErrors.identifier = 'El identificador es obligatorio'
+    if (!imageUri) newErrors.image = 'Selecciona una foto para el bloque'
+    setErrors(newErrors)
+    if (Object.keys(newErrors).length > 0) return
 
     setLoading(true)
+    setErrors({})
     try {
-      const photoUrl = await uploadImage(imageUri)
+      setUploadProgress('Subiendo foto…')
+      const photoUrl = await uploadImage(imageUri!)
+      setUploadProgress('Guardando bloque…')
 
       const { error } = await supabase.from('blocks').insert({
         league_id:  id,
@@ -162,13 +164,13 @@ export default function AddBlockScreen() {
 
       if (error) throw error
 
-      // Navegar de vuelta al detalle de la liguilla
       router.replace(`/(app)/leagues/${id}`)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
-      Alert.alert('Error', `No se pudo guardar el bloque: ${message}`)
+      setErrors({ general: `No se pudo guardar el bloque: ${message}` })
     } finally {
       setLoading(false)
+      setUploadProgress(null)
     }
   }
 
@@ -190,7 +192,7 @@ export default function AddBlockScreen() {
 
         {/* Foto */}
         <Text style={[styles.label, { color: colors.textSecondary }]}>Foto *</Text>
-        <TouchableOpacity style={[styles.photoArea, { borderColor: colors.border }]} onPress={showImageOptions} activeOpacity={0.8}>
+        <TouchableOpacity style={[styles.photoArea, { borderColor: errors.image ? colors.error : colors.border }]} onPress={showImageOptions} activeOpacity={0.8}>
           {imageUri ? (
             <Image source={{ uri: imageUri }} style={styles.photoPreview} resizeMode="cover" />
           ) : (
@@ -200,6 +202,7 @@ export default function AddBlockScreen() {
             </View>
           )}
         </TouchableOpacity>
+        {errors.image && <Text style={[styles.errorText, { color: colors.error }]}>{errors.image}</Text>}
         {imageUri && (
           <TouchableOpacity onPress={showImageOptions} style={styles.changePhoto}>
             <Text style={[styles.changePhotoText, { color: colors.primary }]}>Cambiar foto</Text>
@@ -209,13 +212,14 @@ export default function AddBlockScreen() {
         {/* Identificador */}
         <Text style={[styles.label, { color: colors.textSecondary, marginTop: spacing.md }]}>Identificador *</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
+          style={[styles.input, { backgroundColor: colors.surface, borderColor: errors.identifier ? colors.error : colors.border, color: colors.textPrimary }]}
           placeholder="Ej: Amarillo sector A, Verde 3..."
           placeholderTextColor={colors.textMuted}
           value={identifier}
-          onChangeText={setIdentifier}
+          onChangeText={t => { setIdentifier(t); setErrors(e => ({ ...e, identifier: undefined })) }}
           maxLength={60}
         />
+        {errors.identifier && <Text style={[styles.errorText, { color: colors.error }]}>{errors.identifier}</Text>}
 
         {/* Dificultad */}
         <Text style={[styles.label, { color: colors.textSecondary }]}>
@@ -245,6 +249,21 @@ export default function AddBlockScreen() {
           ))}
         </View>
 
+        {/* Error general */}
+        {errors.general && (
+          <View style={[styles.errorCard, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}>
+            <Text style={[styles.errorCardText, { color: colors.error }]}>⚠️ {errors.general}</Text>
+          </View>
+        )}
+
+        {/* Mensaje de progreso */}
+        {uploadProgress && (
+          <View style={[styles.progressCard, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}>
+            <ActivityIndicator color={colors.primary} size="small" style={{ marginRight: spacing.sm }} />
+            <Text style={[styles.progressText, { color: colors.primary }]}>{uploadProgress}</Text>
+          </View>
+        )}
+
         {/* Botón guardar */}
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: colors.primary }, loading && styles.saveButtonDisabled]}
@@ -271,7 +290,12 @@ const styles = StyleSheet.create({
   title:                { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
   label:                { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, marginBottom: spacing.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
   optional:             { fontWeight: typography.weight.regular, textTransform: 'none', letterSpacing: 0 },
-  input:                { borderRadius: radius.md, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: typography.size.md, marginBottom: spacing.lg },
+  input:                { borderRadius: radius.md, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: typography.size.md, marginBottom: spacing.xs },
+  errorText:            { fontSize: typography.size.sm, marginBottom: spacing.sm },
+  errorCard:            { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, padding: spacing.md, borderWidth: 1, marginBottom: spacing.sm },
+  errorCardText:        { fontSize: typography.size.sm, fontWeight: typography.weight.medium, flex: 1 },
+  progressCard:         { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, padding: spacing.md, borderWidth: 1, marginBottom: spacing.sm },
+  progressText:         { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   photoArea:            { borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.xs, borderWidth: 1, height: 200 },
   photoPreview:         { width: '100%', height: '100%' },
   photoPlaceholder:     { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },

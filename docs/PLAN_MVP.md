@@ -7,7 +7,7 @@
 
 ## 📍 Punto de partida para el siguiente agente
 
-> **Estado:** Fase 7 en progreso · **Rama:** `feature/fase-7` · **Siguiente:** Continuar con **7.1.3** (iconos en `blocks/[id]/index.tsx` y `log-attempt.tsx`) y luego 7.3–7.6
+> **Estado:** Fase 7 en progreso · **Rama:** `feature/fase-7` · **Siguiente:** Continuar con **7.4** (estados vacíos) y luego 7.5–7.6
 
 ---
 
@@ -392,7 +392,15 @@ npm run types:gen
   - El nuevo orden se persiste en BD: `UPDATE blocks SET position = $i WHERE id = $id`
   - Solo disponible antes de que la liga comience (`!isInProgress`)
 
-- [ ] 7.3 Añadir estados de **carga** (`ActivityIndicator`) en todas las pantallas con llamadas async
+- [x] 7.3 Añadir estados de **carga** (`ActivityIndicator`) en todas las pantallas con llamadas async
+  - ✅ Home (`index.tsx`): spinner centrado + estado vacío contextual
+  - ✅ Detalle liguilla (`leagues/[id].tsx`): spinner de carga, error "no encontrada", estado vacío de bloques con texto diferenciado (creador vs participante)
+  - ✅ Ranking (`leagues/[id]/ranking.tsx`): spinner, error, estado vacío, pantalla bloqueada
+  - ✅ Detalle bloque (`blocks/[id]/index.tsx`): spinner, error con distinción error-de-red/no-encontrado + botón "Reintentar", estados bloqueados
+  - ✅ Registro resultado (`blocks/[id]/log-attempt.tsx`): spinner, error, pantallas de "no iniciada" y "finalizada"
+  - ✅ Crear liguilla (`leagues/create.tsx`): ActivityIndicator en botón + tarjeta de error inline (reemplaza toast de error)
+  - ✅ Unirse a liguilla (`leagues/join.tsx`): ActivityIndicator en botón, error inline, navegación directa (sin Alert)
+  - ✅ Añadir bloque (`leagues/[id]/add-block.tsx`): errores inline por campo (foto/identificador), tarjeta de error general, mensaje de progreso "Subiendo foto…" / "Guardando bloque…"
 - [ ] 7.4 Añadir estados **vacíos** cuando no hay liguillas, bloques o participantes
 - [ ] 7.5 Añadir manejo de **errores** con mensajes claros al usuario (toast o inline)
 - [ ] 7.6 Revisar flujo completo de extremo a extremo

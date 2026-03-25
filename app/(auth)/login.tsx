@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { typography, spacing, radius } from '../../constants'
@@ -19,7 +20,7 @@ import { supabase } from '../../lib/supabase'
 
 export default function LoginScreen() {
   const router = useRouter()
-  const { colors } = useTheme()
+  const { colors, isDark } = useTheme()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -58,6 +59,14 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
           </TouchableOpacity>
+          <Image
+            source={isDark
+              ? require('../../assets/logo-climbify.png')
+              : require('../../assets/logo-climbify-light.png')
+            }
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={[styles.title, { color: colors.textPrimary }]}>Bienvenido de nuevo</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Inicia sesión para continuar</Text>
         </View>
@@ -132,9 +141,17 @@ const styles = StyleSheet.create({
   },
   header: {
     marginTop: spacing.md,
+    alignItems: 'center',
+  },
+  logo: {
+    width: 240,
+    height: 66,
+    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
   },
   backButton: {
     marginBottom: spacing.lg,
+    alignSelf: 'flex-start',
   },
   backText: {
     fontSize: typography.size.md,

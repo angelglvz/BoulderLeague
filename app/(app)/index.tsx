@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal } from 'react-native'
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, Image } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useSession } from '../../hooks'
@@ -42,7 +42,14 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.primary }]}>🧗 BoulderLeague</Text>
+        <Image
+          source={isDark
+            ? require('../../assets/logo-climbify.png')
+            : require('../../assets/logo-climbify-light.png')
+          }
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -192,9 +199,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  title: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.extrabold,
+  logo: {
+    height: 52,
+    width: 213,
   },
   headerActions: {
     flexDirection: 'row',

@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Image,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { typography, spacing, radius } from '../../constants'
@@ -20,7 +21,7 @@ import { supabase } from '../../lib/supabase'
 
 export default function RegisterScreen() {
   const router = useRouter()
-  const { colors } = useTheme()
+  const { colors, isDark } = useTheme()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -79,8 +80,16 @@ export default function RegisterScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
             </TouchableOpacity>
+            <Image
+              source={isDark
+                ? require('../../assets/logo-climbify.png')
+                : require('../../assets/logo-climbify-light.png')
+              }
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <Text style={[styles.title, { color: colors.textPrimary }]}>Crear cuenta</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Únete a BoulderLeague</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Únete a Climbify</Text>
           </View>
 
           {/* Formulario */}
@@ -147,9 +156,17 @@ const styles = StyleSheet.create({
   header: {
     marginTop: spacing.md,
     marginBottom: spacing.xl,
+    alignItems: 'center',
+  },
+  logo: {
+    width: 240,
+    height: 66,
+    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
   },
   backButton: {
     marginBottom: spacing.lg,
+    alignSelf: 'flex-start',
   },
   backText: {
     fontSize: typography.size.md,

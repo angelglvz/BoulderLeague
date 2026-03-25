@@ -47,7 +47,7 @@ export default function CreateLeagueScreen() {
   const [rankingVisibleDuring, setRankingVisibleDuring] = useState(true)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-
+  const [generalError, setGeneralError] = useState<string | null>(null)
   function validate() {
     const e: Record<string, string> = {}
     if (!name.trim()) e.name = 'El nombre es obligatorio'
@@ -60,6 +60,7 @@ export default function CreateLeagueScreen() {
   async function handleCreate() {
     if (!validate()) return
     setLoading(true)
+    setGeneralError(null)
 
     const { data: league, error } = await supabase
       .from('leagues')
@@ -79,7 +80,7 @@ export default function CreateLeagueScreen() {
 
     if (error) {
       setLoading(false)
-      toast.show('❌ Error al crear la liguilla')
+      setGeneralError(`No se pudo crear la liguilla. ${error.message ?? ''}`)
       return
     }
 
@@ -182,6 +183,13 @@ export default function CreateLeagueScreen() {
           )}
         </View>
 
+        {/* Error general */}
+        {generalError && (
+          <View style={[styles.errorCard, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}>
+            <Text style={[styles.errorCardText, { color: colors.error }]}>⚠️ {generalError}</Text>
+          </View>
+        )}
+
         <TouchableOpacity
           style={[styles.buttonPrimary, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
           onPress={handleCreate} activeOpacity={0.8} disabled={loading}
@@ -242,6 +250,8 @@ const styles = StyleSheet.create({
   buttonPrimary:      { borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.xl },
   buttonDisabled:     { opacity: 0.6 },
   buttonPrimaryText:  { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
+  errorCard:          { borderRadius: radius.md, padding: spacing.md, borderWidth: 1, marginBottom: spacing.md },
+  errorCardText:      { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   toast:              { position: 'absolute', bottom: spacing.xl, left: spacing.lg, right: spacing.lg, borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, alignItems: 'center', borderWidth: 1, ...shadows.glow },
   toastText:          { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
 })

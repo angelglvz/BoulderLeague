@@ -14,6 +14,7 @@ import { supabase } from '../../../../lib/supabase'
 import { typography, spacing, radius } from '../../../../constants'
 import { useTheme } from '../../../../lib/ThemeContext'
 import { resultEmoji } from '../../../../lib/scoring'
+import { Icon } from '../../../../components'
 import type { Block, Attempt } from '../../../../types'
 
 const DIFFICULTY_LABEL: Record<string, string> = {
@@ -35,6 +36,7 @@ export default function BlockDetailScreen() {
   const [block, setBlock] = useState<Block | null>(null)
   const [attempt, setAttempt] = useState<Attempt | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>('not_started')
 
   useEffect(() => {
@@ -62,11 +64,18 @@ export default function BlockDetailScreen() {
 
   async function fetchBlock() {
     setLoading(true)
-    const { data: blockData } = await supabase
+    setLoadError(null)
+    const { data: blockData, error: blockError } = await supabase
       .from('blocks')
       .select('*')
       .eq('id', id)
       .single()
+
+    if (blockError || !blockData) {
+      setLoadError(blockError ? 'Error al cargar el bloque. Comprueba tu conexión.' : 'Bloque no encontrado')
+      setLoading(false)
+      return
+    }
 
     if (blockData) {
       setBlock(blockData)
@@ -106,7 +115,19 @@ export default function BlockDetailScreen() {
   if (!block) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.errorText, { color: colors.error }]}>Bloque no encontrado</Text>
+        <Icon name="alert-circle-outline" size={48} color={colors.error} />
+        <Text style={[styles.errorText, { color: colors.error, marginTop: spacing.md }]}>
+          {loadError ?? 'Bloque no encontrado'}
+        </Text>
+        {loadError && loadError.includes('Error') && (
+          <TouchableOpacity
+            style={[styles.retryButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            onPress={() => fetchBlock()}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.retryText, { color: colors.primary }]}>Reintentar</Text>
+          </TouchableOpacity>
+        )}
       </View>
     )
   }
@@ -224,6 +245,8 @@ const styles = StyleSheet.create({
   resultEmoji:        { fontSize: typography.size['2xl'], fontWeight: typography.weight.bold },
   resultGoesLabel:    { fontSize: typography.size.lg, fontWeight: typography.weight.semibold },
   resultPendingText:  { fontSize: typography.size.sm, fontStyle: 'italic' },
-  errorText:          { fontSize: typography.size.md },
+  errorText:          { fontSize: typography.size.md, textAlign: 'center' },
+  retryButton:        { marginTop: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl, borderRadius: radius.lg, borderWidth: 1 },
+  retryText:          { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
 })
 
