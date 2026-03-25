@@ -14,21 +14,30 @@ import {
   ScrollView,
   Image,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { typography, spacing, radius } from '../../constants'
 import { useTheme } from '../../lib/ThemeContext'
 import { supabase } from '../../lib/supabase'
 
+type AccountType = 'user' | 'gym'
+
 export default function RegisterScreen() {
   const router = useRouter()
   const { colors, isDark } = useTheme()
+  const params = useLocalSearchParams<{ account_type?: string }>()
+  const accountType: AccountType = params.account_type === 'gym' ? 'gym' : 'user'
+
+  const isGym = accountType === 'gym'
+
   const [name, setName] = useState('')
+  const [location, setLocation] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{
     name?: string
+    location?: string
     email?: string
     password?: string
     passwordConfirm?: string
@@ -36,7 +45,8 @@ export default function RegisterScreen() {
 
   function validate() {
     const e: typeof errors = {}
-    if (!name.trim()) e.name = 'El nombre es obligatorio'
+    if (!name.trim()) e.name = isGym ? 'El nombre del rocódromo es obligatorio' : 'El nombre es obligatorio'
+    if (isGym && !location.trim()) e.location = 'La ubicación es obligatoria'
     if (!email.trim()) e.email = 'El email es obligatorio'
     else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Email no válido'
     if (!password) e.password = 'La contraseña es obligatoria'
@@ -53,14 +63,32 @@ export default function RegisterScreen() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { name } },
+      options: {
+        data: {
+          name,
+          account_type: accountType,
+          ...(isGym && { gym_location: location }),
+        },
+      },
     })
     setLoading(false)
     if (error) {
-      Alert.alert('Error al registrarse', error.message)
+      // Traducir los mensajes más comunes de Supabase
+      const msg = error.message.toLowerCase()
+      let friendly = error.message
+      if (msg.includes('already registered') || msg.includes('user already exists')) {
+        friendly = 'Este email ya está registrado. Prueba a iniciar sesión.'
+      } else if (msg.includes('password') && msg.includes('characters')) {
+        friendly = 'La contraseña debe tener al menos 8 caracteres (requisito del servidor).'
+      } else if (msg.includes('invalid email')) {
+        friendly = 'El formato del email no es válido.'
+      } else if (msg.includes('email rate limit')) {
+        friendly = 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.'
+      }
+      Alert.alert('Error al registrarse', friendly)
     } else {
       Alert.alert(
-        '¡Cuenta creada! 🧗',
+        isGym ? '¡Rocódromo registrado! 🏢' : '¡Cuenta creada! 🧗',
         'Ya puedes iniciar sesión con tu email y contraseña.',
         [{ text: 'Entrar', onPress: () => router.replace('/(auth)/login') }],
       )
@@ -88,32 +116,102 @@ export default function RegisterScreen() {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Crear cuenta</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Únete a Climbify</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>
+              {isGym ? 'Registrar rocódromo' : 'Crear cuenta'}
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              {isGym ? 'Gestiona tus bloques y liguillas 🏢' : 'Únete a Climbify 🧗'}
+            </Text>
+          </View>
+
+          {/* Badge de tipo de cuenta */}
+          <View style={[styles.typeBadge, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}>
+            <Text style={[styles.typeBadgeText, { color: colors.primary }]}>
+              {isGym ? '🏢 Cuenta de rocódromo' : '🧗 Cuenta de escalador'}
+            </Text>
           </View>
 
           {/* Formulario */}
           <View style={styles.form}>
-            {([
-              { key: 'name', label: 'Nombre', value: name, setter: setName, placeholder: 'Tu nombre', opts: { autoCapitalize: 'words' as const } },
-              { key: 'email', label: 'Email', value: email, setter: setEmail, placeholder: 'tu@email.com', opts: { keyboardType: 'email-address' as const, autoCapitalize: 'none' as const } },
-              { key: 'password', label: 'Contraseña', value: password, setter: setPassword, placeholder: 'Mínimo 6 caracteres', opts: { secureTextEntry: true } },
-              { key: 'passwordConfirm', label: 'Confirmar contraseña', value: passwordConfirm, setter: setPasswordConfirm, placeholder: 'Repite tu contraseña', opts: { secureTextEntry: true } },
-            ] as const).map(({ key, label, value, setter, placeholder, opts }) => (
-              <View key={key} style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
+            {/* Nombre */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                {isGym ? 'Nombre del rocódromo' : 'Nombre'}
+              </Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.name ? colors.error : colors.border }]}
+                placeholder={isGym ? 'Ej: Boulder Park Madrid' : 'Tu nombre'}
+                placeholderTextColor={colors.textMuted}
+                value={name}
+                onChangeText={setName}
+                autoCorrect={false}
+                autoCapitalize="words"
+              />
+              {errors.name ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.name}</Text> : null}
+            </View>
+
+            {/* Ubicación (solo GYM) */}
+            {isGym && (
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Ubicación</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors[key] ? colors.error : colors.border }]}
-                  placeholder={placeholder}
+                  style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.location ? colors.error : colors.border }]}
+                  placeholder="Ciudad, País"
                   placeholderTextColor={colors.textMuted}
-                  value={value}
-                  onChangeText={setter}
+                  value={location}
+                  onChangeText={setLocation}
                   autoCorrect={false}
-                  {...opts}
+                  autoCapitalize="words"
                 />
-                {errors[key] ? <Text style={[styles.errorText, { color: colors.error }]}>{errors[key]}</Text> : null}
+                {errors.location ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.location}</Text> : null}
               </View>
-            ))}
+            )}
+
+            {/* Email */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.email ? colors.error : colors.border }]}
+                placeholder="tu@email.com"
+                placeholderTextColor={colors.textMuted}
+                value={email}
+                onChangeText={setEmail}
+                autoCorrect={false}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              {errors.email ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.email}</Text> : null}
+            </View>
+
+            {/* Contraseña */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Contraseña</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.password ? colors.error : colors.border }]}
+                placeholder="Mínimo 6 caracteres"
+                placeholderTextColor={colors.textMuted}
+                value={password}
+                onChangeText={setPassword}
+                autoCorrect={false}
+                secureTextEntry
+              />
+              {errors.password ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.password}</Text> : null}
+            </View>
+
+            {/* Confirmar contraseña */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Confirmar contraseña</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.passwordConfirm ? colors.error : colors.border }]}
+                placeholder="Repite tu contraseña"
+                placeholderTextColor={colors.textMuted}
+                value={passwordConfirm}
+                onChangeText={setPasswordConfirm}
+                autoCorrect={false}
+                secureTextEntry
+              />
+              {errors.passwordConfirm ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.passwordConfirm}</Text> : null}
+            </View>
           </View>
 
           {/* Botones */}
@@ -127,7 +225,9 @@ export default function RegisterScreen() {
               {loading ? (
                 <ActivityIndicator color={colors.textInverse} />
               ) : (
-                <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Crear cuenta</Text>
+                <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>
+                  {isGym ? 'Registrar rocódromo' : 'Crear cuenta'}
+                </Text>
               )}
             </TouchableOpacity>
 
@@ -225,5 +325,19 @@ const styles = StyleSheet.create({
   },
   linkTextBold: {
     fontWeight: typography.weight.bold,
+  },
+  typeBadge: {
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+  },
+  typeBadgeText: {
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.semibold,
+    textAlign: 'center',
   },
 })

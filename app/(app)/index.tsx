@@ -1,45 +1,158 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, Image } from 'react-native'
+import {
+  View, Text, StyleSheet, TouchableOpacity,
+  ActivityIndicator, Modal, Image, ScrollView,
+} from 'react-native'
 import { useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
-import { useSession } from '../../hooks'
+import { useEffect, useState, useCallback } from 'react'
+import { useSession, useProfile } from '../../hooks'
 import { supabase } from '../../lib/supabase'
 import { useTheme } from '../../lib/ThemeContext'
 import { typography, spacing, radius } from '../../constants'
-import { LeagueCard } from '../../components/LeagueCard'
-import { Icon } from '../../components'
-import type { League } from '../../types'
+import { LeagueCard, GymCard, Icon } from '../../components'
 
+// ─── Tipos locales ───────────────────────────────────────────
+interface League {
+  id: string
+  name: string
+  is_private: boolean
+  start_date?: string | null
+  end_date?: string | null
+  reward?: string | null
+  creator_id: string
+  ranking_visible_during: boolean
+}
+
+interface FavoriteGym {
+  gym_id: string
+  profiles: {
+    id: string
+    name: string
+    gym_location?: string | null
+  } | null
+  activeBlocks?: number
+}
+
+// ─── HomeScreen ───────────────────────────────────────────────
 export default function HomeScreen() {
   const { user, signOut } = useSession()
+  const { isGym } = useProfile()
   const router = useRouter()
   const { colors, toggleTheme, isDark } = useTheme()
+
   const [leagues, setLeagues] = useState<League[]>([])
+  const [favorites, setFavorites] = useState<FavoriteGym[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
 
+  // Si es GYM redirigir a su home
   useEffect(() => {
+    if (isGym) router.replace('/(app)/gym')
+  }, [isGym])
+
+  const fetchData = useCallback(async () => {
     if (!user) return
-    fetchLeagues()
+    setLoading(true)
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
+
+    const [leaguesRes, favRes] = await Promise.all([
+      // Liguillas activas o finalizadas en los últimos 7 días
+      supabase
+        .from('league_participants')
+        .select('leagues(*)')
+        .eq('user_id', user.id),
+      // Gyms favoritos
+      supabase
+        .from('gym_favorites')
+        .select('gym_id, profiles(id, name, gym_location)')
+        .eq('user_id', user.id),
+    ])
+
+    if (leaguesRes.data) {
+      const all = leaguesRes.data
+        .map((r: any) => r.leagues)
+        .filter(Boolean) as League[]
+      // Filtrar solo activas o finalizadas en los últimos 7 días
+      const filtered = all.filter(l => {
+        if (!l.end_date) return true
+        return new Date(l.end_date) >= new Date(sevenDaysAgo)
+      })
+      setLeagues(filtered)
+    }
+
+    if (favRes.data) {
+      setFavorites(favRes.data as any)
+    }
+
+    setLoading(false)
   }, [user])
 
-  async function fetchLeagues() {
-    setLoading(true)
-    setLoadError(null)
-    const { data, error } = await supabase
-      .from('league_participants')
-      .select('league_id, leagues(*)')
-      .eq('user_id', user!.id)
+  useEffect(() => { fetchData() }, [fetchData])
 
-    if (error) {
-      setLoadError('No se pudieron cargar las liguillas. Comprueba tu conexión.')
-    } else if (data) {
-      const leagueList = data
-        .map((item: any) => item.leagues)
-        .filter(Boolean) as League[]
-      setLeagues(leagueList)
+  function renderGymsSection() {
+    if (loading) return <ActivityIndicator color={colors.primary} />
+    if (favorites.length === 0) {
+      return (
+        <TouchableOpacity
+          style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => router.push('/(app)/gyms')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.emptyEmoji}>🏢</Text>
+          <Text style={[styles.emptyCardText, { color: colors.textSecondary }]}>
+            Busca y añade rocódromos favoritos
+          </Text>
+          <Text style={[styles.emptyCardLink, { color: colors.primary }]}>Explorar rocódromos →</Text>
+        </TouchableOpacity>
+      )
     }
-    setLoading(false)
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gymScroll}>
+        {favorites.map(fav => fav.profiles ? (
+          <View key={fav.gym_id} style={styles.gymCardWrap}>
+            <GymCard
+              gym={{
+                id: fav.profiles.id,
+                name: fav.profiles.name,
+                gym_location: fav.profiles.gym_location,
+                activeBlocks: fav.activeBlocks ?? 0,
+              }}
+              isFavorite
+            />
+          </View>
+        ) : null)}
+        <TouchableOpacity
+          style={[styles.addGymCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => router.push('/(app)/gyms')}
+          activeOpacity={0.8}
+        >
+          <Icon name="add-circle-outline" size={28} color={colors.primary} />
+          <Text style={[styles.addGymText, { color: colors.primary }]}>Añadir</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    )
+  }
+
+  function renderLeaguesSection() {
+    if (loading) return <ActivityIndicator color={colors.primary} style={styles.loader} />
+    if (leagues.length === 0) {
+      return (
+        <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={styles.emptyEmoji}>🏔️</Text>
+          <Text style={[styles.emptyCardText, { color: colors.textSecondary }]}>
+            Aún no participas en ninguna liguilla
+          </Text>
+          <Text style={[styles.emptyCardSub, { color: colors.textMuted }]}>
+            Crea una nueva o únete con un código
+          </Text>
+        </View>
+      )
+    }
+    return (
+      <View style={styles.leagueList}>
+        {leagues.map(item => <LeagueCard key={item.id} league={item} />)}
+      </View>
+    )
   }
 
   return (
@@ -68,67 +181,71 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Acciones */}
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.buttonPrimary, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/(app)/leagues/create')}
-          activeOpacity={0.8}
-        >
-          <Icon name="add-circle-outline" size={16} color={colors.textInverse} style={{ marginRight: 4 }} />
-          <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Nueva liguilla</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.buttonSecondary, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => router.push('/(app)/leagues/join')}
-          activeOpacity={0.8}
-        >
-          <Icon name="enter-outline" size={16} color={colors.textSecondary} style={{ marginRight: 4 }} />
-          <Text style={[styles.buttonSecondaryText, { color: colors.textSecondary }]}>Unirse con código</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Listado */}
-      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Mis liguillas</Text>
-
-      {loading ? (
-        <ActivityIndicator color={colors.primary} style={styles.loader} />
-      ) : loadError ? (
-        <View style={styles.empty}>
-          <Icon name="wifi-outline" size={48} color={colors.textMuted} />
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{loadError}</Text>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Acciones */}
+        <View style={styles.actions}>
           <TouchableOpacity
-            style={[styles.retryButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-            onPress={fetchLeagues}
+            style={[styles.buttonPrimary, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/(app)/leagues/create')}
             activeOpacity={0.8}
           >
-            <Icon name="refresh-outline" size={16} color={colors.primary} style={{ marginRight: 4 }} />
-            <Text style={[styles.retryButtonText, { color: colors.primary }]}>Reintentar</Text>
+            <Icon name="add-circle-outline" size={16} color={colors.textInverse} style={{ marginRight: 4 }} />
+            <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Nueva liguilla</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.buttonSecondary, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(app)/leagues/join')}
+            activeOpacity={0.8}
+          >
+            <Icon name="enter-outline" size={16} color={colors.textSecondary} style={{ marginRight: 4 }} />
+            <Text style={[styles.buttonSecondaryText, { color: colors.textSecondary }]}>Unirse con código</Text>
           </TouchableOpacity>
         </View>
-      ) : leagues.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyEmoji}>🏔️</Text>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aún no participas en ninguna liguilla</Text>
-          <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Crea una nueva o únete con un código</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={leagues}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => <LeagueCard league={item} />}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
 
-      {/* ── Modal de ajustes / tema ────────────────────────────────── */}
-      <Modal
-        visible={showSettings}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSettings(false)}
-      >
+        {/* ── Sección: Mis gyms favoritos ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Mis rocódromos</Text>
+            <TouchableOpacity onPress={() => router.push('/(app)/gyms')}>
+              <Text style={[styles.sectionLink, { color: colors.primary }]}>Ver todos →</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : renderGymsSection()}
+        </View>
+
+        {/* ── Sección: Mis liguillas ── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Mis liguillas</Text>
+          {renderLeaguesSection()}
+        </View>
+
+        {/* ── Sección: Descubrir ── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Descubrir</Text>
+          <TouchableOpacity
+            style={[styles.discoverBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(app)/gyms')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.discoverEmoji}>🔍</Text>
+            <View>
+              <Text style={[styles.discoverTitle, { color: colors.textPrimary }]}>Explorar rocódromos</Text>
+              <Text style={[styles.discoverSub, { color: colors.textMuted }]}>
+                Encuentra tu rocódromo y únete a sus liguillas
+              </Text>
+            </View>
+            <Icon name="chevron-forward-outline" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ height: spacing.xl }} />
+      </ScrollView>
+
+      {/* ── Modal de ajustes ── */}
+      <Modal visible={showSettings} transparent animationType="fade" onRequestClose={() => setShowSettings(false)}>
         <TouchableOpacity
           style={[styles.overlay, { backgroundColor: colors.overlay }]}
           activeOpacity={1}
@@ -136,61 +253,37 @@ export default function HomeScreen() {
         >
           <View
             style={[styles.settingsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            // Evitar que el tap en la tarjeta cierre el modal
             onStartShouldSetResponder={() => true}
           >
             <View style={styles.settingsHeader}>
               <Icon name="settings-outline" size={20} color={colors.primary} />
               <Text style={[styles.settingsTitle, { color: colors.textPrimary }]}>Ajustes</Text>
             </View>
-
-            {/* Selector de tema */}
             <Text style={[styles.settingsLabel, { color: colors.textSecondary }]}>Apariencia</Text>
             <View style={[styles.themeRow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-              {/* Botón OSCURO */}
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  isDark && [styles.themeOptionActive, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }],
-                  !isDark && { borderColor: 'transparent' },
-                ]}
-                onPress={() => { if (!isDark) toggleTheme() }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.themeEmoji}>🌙</Text>
-                <Text style={[styles.themeLabel, { color: isDark ? colors.primary : colors.textSecondary }]}>
-                  Oscuro
-                </Text>
-                {isDark && (
-                  <View style={[styles.themeCheck, { backgroundColor: colors.primary }]}>
-                    <Icon name="checkmark" size={10} color="#fff" />
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              {/* Botón CLARO */}
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  !isDark && [styles.themeOptionActive, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }],
-                  isDark && { borderColor: 'transparent' },
-                ]}
-                onPress={() => { if (isDark) toggleTheme() }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.themeEmoji}>☀️</Text>
-                <Text style={[styles.themeLabel, { color: !isDark ? colors.primary : colors.textSecondary }]}>
-                  Claro
-                </Text>
-                {!isDark && (
-                  <View style={[styles.themeCheck, { backgroundColor: colors.primary }]}>
-                    <Icon name="checkmark" size={10} color="#fff" />
-                  </View>
-                )}
-              </TouchableOpacity>
+              {[
+                { label: 'Oscuro', emoji: '🌙', active: isDark },
+                { label: 'Claro', emoji: '☀️', active: !isDark },
+              ].map(({ label, emoji, active }) => (
+                <TouchableOpacity
+                  key={label}
+                  style={[
+                    styles.themeOption,
+                    active ? [styles.themeOptionActive, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }] : { borderColor: 'transparent' },
+                  ]}
+                  onPress={() => { if (!active) toggleTheme() }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.themeEmoji}>{emoji}</Text>
+                  <Text style={[styles.themeLabel, { color: active ? colors.primary : colors.textSecondary }]}>{label}</Text>
+                  {active && (
+                    <View style={[styles.themeCheck, { backgroundColor: colors.primary }]}>
+                      <Icon name="checkmark" size={10} color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
             </View>
-
-            {/* Cerrar */}
             <TouchableOpacity
               style={[styles.closeBtn, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
               onPress={() => setShowSettings(false)}
@@ -205,188 +298,93 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: spacing.xl,
-    paddingHorizontal: spacing.lg,
-  },
+  container: { flex: 1, paddingTop: spacing.xl, paddingHorizontal: spacing.lg },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  logo: {
-    height: 52,
-    width: 213,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
+  logo: { height: 52, width: 213 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 36, height: 36, borderRadius: radius.md,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-  signOutBtn: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-  },
-  signOut: {
-    fontSize: typography.size.sm,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
+  signOutBtn: { borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 6 },
+  signOut: { fontSize: typography.size.sm },
+  actions: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   buttonPrimary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', borderRadius: radius.md, paddingVertical: spacing.sm,
   },
-  buttonPrimaryText: {
-    fontWeight: typography.weight.bold,
-    fontSize: typography.size.md,
-  },
+  buttonPrimaryText: { fontWeight: typography.weight.bold, fontSize: typography.size.md },
   buttonSecondary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    borderWidth: 1,
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', borderRadius: radius.md, paddingVertical: spacing.sm, borderWidth: 1,
   },
-  buttonSecondaryText: {
-    fontWeight: typography.weight.medium,
-    fontSize: typography.size.md,
-  },
+  buttonSecondaryText: { fontWeight: typography.weight.medium, fontSize: typography.size.md },
+  section: { marginBottom: spacing.xl, gap: spacing.sm },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
+    fontSize: typography.size.sm, fontWeight: typography.weight.semibold,
+    textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  loader: {
-    marginTop: spacing.xl,
+  sectionLink: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  gymScroll: { marginHorizontal: -spacing.lg, paddingHorizontal: spacing.lg },
+  gymCardWrap: { width: 240, marginRight: spacing.sm },
+  addGymCard: {
+    width: 100, borderRadius: radius.lg, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+    gap: 4, paddingVertical: spacing.lg, marginRight: spacing.lg,
   },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
+  addGymText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
+  emptyCard: {
+    borderRadius: radius.lg, borderWidth: 1,
+    padding: spacing.lg, alignItems: 'center', gap: spacing.xs,
   },
-  emptyEmoji: { fontSize: 48 },
-  emptyText: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.medium,
-    textAlign: 'center',
+  emptyEmoji: { fontSize: 32 },
+  emptyCardText: { fontSize: typography.size.md, fontWeight: typography.weight.medium, textAlign: 'center' },
+  emptyCardSub: { fontSize: typography.size.sm, textAlign: 'center' },
+  emptyCardLink: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  loader: { marginTop: spacing.md },
+  leagueList: { gap: spacing.sm },
+  discoverBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: radius.lg, borderWidth: 1,
+    padding: spacing.md, gap: spacing.md,
   },
-  emptySubtext: {
-    fontSize: typography.size.sm,
-    textAlign: 'center',
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-  },
-  retryButtonText: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.semibold,
-  },
-  list: {
-    gap: spacing.sm,
-    paddingBottom: spacing.xl,
-  },
-  // ── Settings modal ──────────────────────────────────────────
-  overlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
+  discoverEmoji: { fontSize: 28 },
+  discoverTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  discoverSub: { fontSize: typography.size.sm },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
   settingsCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    padding: spacing.lg,
-    gap: spacing.md,
+    width: '100%', maxWidth: 360, borderRadius: radius.xl,
+    borderWidth: 1, padding: spacing.lg, gap: spacing.md,
   },
-  settingsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  settingsTitle: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
-  },
+  settingsHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  settingsTitle: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   settingsLabel: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: typography.size.sm, fontWeight: typography.weight.semibold,
+    textTransform: 'uppercase', letterSpacing: 0.5,
   },
   themeRow: {
-    flexDirection: 'row',
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    padding: spacing.xs,
-    gap: spacing.xs,
+    flexDirection: 'row', borderRadius: radius.lg,
+    borderWidth: 1, padding: spacing.xs, gap: spacing.xs,
   },
   themeOption: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    gap: 4,
-    position: 'relative',
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: spacing.sm, borderRadius: radius.md,
+    borderWidth: 1.5, gap: 4, position: 'relative',
   },
   themeOptionActive: {},
   themeEmoji: { fontSize: 22 },
-  themeLabel: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
-  },
+  themeLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   themeCheck: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'absolute', top: 6, right: 6,
+    width: 16, height: 16, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
   },
-  closeBtn: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  closeBtnText: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.semibold,
-  },
+  closeBtn: { borderRadius: radius.md, borderWidth: 1, paddingVertical: spacing.sm, alignItems: 'center', marginTop: spacing.xs },
+  closeBtnText: { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
 })

@@ -594,13 +594,22 @@ Modificar `app/(app)/_layout.tsx`:
 Modificar `app/(app)/index.tsx` (vista de usuario):
 - **Sección 1 — Mis gyms favoritos**: scroll horizontal de `GymCard` con acceso directo
   - Si no tiene favoritos: botón **"Buscar un rocódromo"**
+  - ⚠️ **Solo visible para cuentas USER** — los GYMs no ven esta sección
 - **Sección 2 — Liguillas activas**: liguillas en curso en las que participa el usuario
   - Badge de estado: 🟢 En curso / 🏁 Finalizada
   - Liguillas finalizadas: solo las de los **últimos 7 días** (`end_date >= NOW() - INTERVAL '7 days'`)
   - Indicador de visibilidad: 🔓 Pública / 🔒 Privada
   - Al pulsar → detalle de la liguilla
 - **Sección 3 — Descubrir**: acceso a gyms favoritos y explorar rocódromos
+  - ⚠️ **Solo visible para cuentas USER** — los GYMs no ven esta sección
 - Contador de bloques completados esta semana
+
+> 🔒 **Regla de negocio confirmada:** Las cuentas GYM no pueden:
+> - Ver ni usar la sección "Mis rocódromos favoritos"
+> - Buscar otros rocódromos (`/gyms`)
+> - Añadir gyms a favoritos (`gym_favorites`)
+> 
+> Estas funcionalidades son exclusivas de cuentas USER.
 
 **Query home:**
 ```sql
@@ -677,6 +686,8 @@ Crear `components/GymCard.tsx`:
 
 ### 2.5 — Buscador de rocódromos
 
+> ⚠️ **Solo accesible para cuentas USER**
+
 Crear `app/(app)/gyms/search.tsx`:
 - Input de búsqueda por nombre o ubicación (búsqueda en tiempo real con debounce 300ms)
 - Resultados como lista de `GymCard`
@@ -687,6 +698,8 @@ Crear `app/(app)/gyms/search.tsx`:
 **Archivos:** `app/(app)/gyms/search.tsx`, `app/(app)/gyms/_layout.tsx`
 
 ### 2.6 — Listado de todos los rocódromos
+
+> ⚠️ **Solo accesible para cuentas USER**
 
 Crear `app/(app)/gyms/index.tsx`:
 - Listado completo de gyms registrados en la plataforma

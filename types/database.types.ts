@@ -14,35 +14,141 @@ export type Database = {
   }
   public: {
     Tables: {
-      attempts: {
+      profiles: {
         Row: {
-          block_id: string
           id: string
-          number_of_goes: number
-          score: number
-          timestamp: string | null
+          account_type: Database["public"]["Enums"]["account_type"]
+          name: string
+          avatar_url: string | null
+          gym_location: string | null
+          gym_description: string | null
+          bio: string | null
+          created_at: string | null
           updated_at: string | null
-          user_id: string
         }
         Insert: {
-          block_id: string
-          id?: string
-          number_of_goes: number
-          score: number
-          timestamp?: string | null
+          id: string
+          account_type?: Database["public"]["Enums"]["account_type"]
+          name: string
+          avatar_url?: string | null
+          gym_location?: string | null
+          gym_description?: string | null
+          bio?: string | null
+          created_at?: string | null
           updated_at?: string | null
-          user_id: string
         }
         Update: {
-          block_id?: string
           id?: string
-          number_of_goes?: number
-          score?: number
-          timestamp?: string | null
+          account_type?: Database["public"]["Enums"]["account_type"]
+          name?: string
+          avatar_url?: string | null
+          gym_location?: string | null
+          gym_description?: string | null
+          bio?: string | null
+          created_at?: string | null
           updated_at?: string | null
-          user_id?: string
+        }
+        Relationships: []
+      }
+      blocks: {
+        Row: {
+          id: string
+          owner_type: Database["public"]["Enums"]["block_owner_type"]
+          gym_id: string | null
+          user_id: string | null
+          photo_url: string
+          identifier: string
+          difficulty: Database["public"]["Enums"]["block_difficulty"]
+          color: string | null
+          sector: string | null
+          is_active: boolean
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          owner_type: Database["public"]["Enums"]["block_owner_type"]
+          gym_id?: string | null
+          user_id?: string | null
+          photo_url: string
+          identifier: string
+          difficulty: Database["public"]["Enums"]["block_difficulty"]
+          color?: string | null
+          sector?: string | null
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          owner_type?: Database["public"]["Enums"]["block_owner_type"]
+          gym_id?: string | null
+          user_id?: string | null
+          photo_url?: string
+          identifier?: string
+          difficulty?: Database["public"]["Enums"]["block_difficulty"]
+          color?: string | null
+          sector?: string | null
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "blocks_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attempts: {
+        Row: {
+          id: string
+          user_id: string
+          block_id: string
+          number_of_goes: number
+          result: Database["public"]["Enums"]["attempt_result"]
+          score: number
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          block_id: string
+          number_of_goes: number
+          result: Database["public"]["Enums"]["attempt_result"]
+          score: number
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          block_id?: string
+          number_of_goes?: number
+          result?: Database["public"]["Enums"]["attempt_result"]
+          score?: number
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "attempts_block_id_fkey"
             columns: ["block_id"]
@@ -50,89 +156,79 @@ export type Database = {
             referencedRelation: "blocks"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "attempts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
-      blocks: {
+      leagues: {
         Row: {
-          created_at: string | null
-          difficulty: string | null
           id: string
-          identifier: string
-          league_id: string
-          photo_url: string
+          creator_id: string
+          name: string
+          reward: string | null
+          is_private: boolean
+          access_code: string | null
+          max_participants: number | null
+          ranking_visible_during: boolean
+          start_date: string | null
+          end_date: string | null
+          created_at: string | null
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string | null
-          difficulty?: string | null
           id?: string
-          identifier: string
-          league_id: string
-          photo_url: string
+          creator_id: string
+          name: string
+          reward?: string | null
+          is_private?: boolean
+          access_code?: string | null
+          max_participants?: number | null
+          ranking_visible_during?: boolean
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
         Update: {
-          created_at?: string | null
-          difficulty?: string | null
           id?: string
-          identifier?: string
-          league_id?: string
-          photo_url?: string
+          creator_id?: string
+          name?: string
+          reward?: string | null
+          is_private?: boolean
+          access_code?: string | null
+          max_participants?: number | null
+          ranking_visible_during?: boolean
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "blocks_league_id_fkey"
-            columns: ["league_id"]
+            foreignKeyName: "leagues_creator_id_fkey"
+            columns: ["creator_id"]
             isOneToOne: false
-            referencedRelation: "leagues"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
-      }
-      gyms: {
-        Row: {
-          created_at: string | null
-          id: string
-          location: string | null
-          name: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          location?: string | null
-          name: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          location?: string | null
-          name?: string
-        }
-        Relationships: []
       }
       league_participants: {
         Row: {
           id: string
-          joined_at: string | null
           league_id: string
           user_id: string
+          joined_at: string | null
         }
         Insert: {
           id?: string
-          joined_at?: string | null
           league_id: string
           user_id: string
+          joined_at?: string | null
         }
         Update: {
           id?: string
-          joined_at?: string | null
           league_id?: string
           user_id?: string
+          joined_at?: string | null
         }
         Relationships: [
           {
@@ -146,110 +242,373 @@ export type Database = {
             foreignKeyName: "league_participants_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
       }
-      leagues: {
+      league_blocks: {
         Row: {
-          access_code: string | null
-          created_at: string | null
-          creator_id: string
-          end_date: string | null
-          gym_id: string | null
           id: string
-          is_private: boolean | null
-          max_participants: number | null
-          name: string
-          ranking_visible_during: boolean
-          reward: string | null
-          start_date: string | null
+          league_id: string
+          block_id: string
+          display_order: number
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          league_id: string
+          block_id: string
+          display_order?: number
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          league_id?: string
+          block_id?: string
+          display_order?: number
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_blocks_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_blocks_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      block_ratings: {
+        Row: {
+          id: string
+          block_id: string
+          user_id: string
+          stars: number
+          created_at: string | null
           updated_at: string | null
         }
         Insert: {
-          access_code?: string | null
-          created_at?: string | null
-          creator_id: string
-          end_date?: string | null
-          gym_id?: string | null
           id?: string
-          is_private?: boolean | null
-          max_participants?: number | null
-          name: string
-          ranking_visible_during?: boolean
-          reward?: string | null
-          start_date?: string | null
+          block_id: string
+          user_id: string
+          stars: number
+          created_at?: string | null
           updated_at?: string | null
         }
         Update: {
-          access_code?: string | null
-          created_at?: string | null
-          creator_id?: string
-          end_date?: string | null
-          gym_id?: string | null
           id?: string
-          is_private?: boolean | null
-          max_participants?: number | null
-          name?: string
-          ranking_visible_during?: boolean
-          reward?: string | null
-          start_date?: string | null
+          block_id?: string
+          user_id?: string
+          stars?: number
+          created_at?: string | null
           updated_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "leagues_creator_id_fkey"
-            columns: ["creator_id"]
+            foreignKeyName: "block_ratings_block_id_fkey"
+            columns: ["block_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "blocks"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "leagues_gym_id_fkey"
-            columns: ["gym_id"]
+            foreignKeyName: "block_ratings_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "gyms"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
       }
-      users: {
+      block_comments: {
         Row: {
-          avatar_url: string | null
-          created_at: string | null
-          email: string
           id: string
-          name: string
+          block_id: string
+          user_id: string
+          content: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          block_id: string
+          user_id: string
+          content: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          block_id?: string
+          user_id?: string
+          content?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "block_comments_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "block_comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      achievements: {
+        Row: {
+          id: string
+          user_id: string
+          type: Database["public"]["Enums"]["achievement_type"]
+          achieved_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: Database["public"]["Enums"]["achievement_type"]
+          achieved_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: Database["public"]["Enums"]["achievement_type"]
+          achieved_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "achievements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      friendships: {
+        Row: {
+          id: string
+          requester_id: string
+          addressee_id: string
+          status: Database["public"]["Enums"]["friendship_status"]
+          created_at: string | null
           updated_at: string | null
         }
         Insert: {
-          avatar_url?: string | null
-          created_at?: string | null
-          email: string
           id?: string
-          name: string
+          requester_id: string
+          addressee_id: string
+          status?: Database["public"]["Enums"]["friendship_status"]
+          created_at?: string | null
           updated_at?: string | null
         }
         Update: {
-          avatar_url?: string | null
-          created_at?: string | null
-          email?: string
           id?: string
-          name?: string
+          requester_id?: string
+          addressee_id?: string
+          status?: Database["public"]["Enums"]["friendship_status"]
+          created_at?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "friendships_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "friendships_addressee_id_fkey"
+            columns: ["addressee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gym_favorites: {
+        Row: {
+          id: string
+          user_id: string
+          gym_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          gym_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          gym_id?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gym_favorites_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gym_favorites_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_feed: {
+        Row: {
+          id: string
+          user_id: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          block_id: string | null
+          achievement_id: string | null
+          likes_count: number
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          block_id?: string | null
+          achievement_id?: string | null
+          likes_count?: number
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          event_type?: Database["public"]["Enums"]["feed_event_type"]
+          block_id?: string | null
+          achievement_id?: string | null
+          likes_count?: number
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_feed_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_feed_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_feed_achievement_id_fkey"
+            columns: ["achievement_id"]
+            isOneToOne: false
+            referencedRelation: "achievements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_likes: {
+        Row: {
+          id: string
+          feed_item_id: string
+          user_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          feed_item_id: string
+          user_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          feed_item_id?: string
+          user_id?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_likes_feed_item_id_fkey"
+            columns: ["feed_item_id"]
+            isOneToOne: false
+            referencedRelation: "activity_feed"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
-      [_ in never]: never
+      gym_rankings: {
+        Row: {
+          user_id: string | null
+          gym_id: string | null
+          total_score: number | null
+          blocks_completed: number | null
+        }
+        Relationships: []
+      }
+      gym_rankings_monthly: {
+        Row: {
+          user_id: string | null
+          gym_id: string | null
+          month: string | null
+          total_score: number | null
+        }
+        Relationships: []
+      }
+      block_avg_rating: {
+        Row: {
+          block_id: string | null
+          avg_stars: number | null
+          rating_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      account_type: "user" | "gym"
+      block_difficulty: "novato" | "medio" | "avanzado" | "experimentado" | "profesional"
+      block_owner_type: "gym" | "user"
+      attempt_result: "flash" | "completed" | "not_completed"
+      friendship_status: "pending" | "accepted"
+      achievement_type:
+        | "blocks_10"
+        | "blocks_50"
+        | "blocks_100"
+        | "advanced_10"
+        | "professional_5"
+        | "flash_month"
+        | "active_days_month"
+      feed_event_type: "attempt_completed" | "achievement_earned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -376,6 +735,22 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      account_type: ["user", "gym"] as const,
+      block_difficulty: ["novato", "medio", "avanzado", "experimentado", "profesional"] as const,
+      block_owner_type: ["gym", "user"] as const,
+      attempt_result: ["flash", "completed", "not_completed"] as const,
+      friendship_status: ["pending", "accepted"] as const,
+      achievement_type: [
+        "blocks_10",
+        "blocks_50",
+        "blocks_100",
+        "advanced_10",
+        "professional_5",
+        "flash_month",
+        "active_days_month",
+      ] as const,
+      feed_event_type: ["attempt_completed", "achievement_earned"] as const,
+    },
   },
 } as const
