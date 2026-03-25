@@ -7,27 +7,61 @@
 
 ## 📍 Punto de partida para el siguiente agente
 
-> **Estado:** Fase 6 completada · **Rama:** `feature/fase-6` · **Siguiente:** Fase 7 (Pulido visual y UX)
+> **Estado:** Fase 7 completada · **Rama:** `feature/fase-7` · **Siguiente:** Fase 8 (Build y distribución)
 
-### Lo que ya funciona
+---
+
+### ⚠️ PROBLEMA ABIERTO — drag & drop bloqueado
+
+La implementación original con `react-native-draggable-flatlist` + `react-native-reanimated` falló en web. Se **eliminó el drag & drop** y se volvió a los botones ▲/▼ (ver 7.2 más abajo). El sistema de reordenación funciona correctamente con flechas.
+
+Si en el futuro se quiere retomar el drag & drop, las dependencias a instalar son:
+```
+npm install react-native-reanimated@~3.17.4 react-native-gesture-handler react-native-draggable-flatlist@^4.0.1 --legacy-peer-deps
+```
+Y añadir `'react-native-reanimated/plugin'` en `babel.config.js` + `import 'react-native-reanimated'` al inicio de `app/_layout.tsx`.
+
+---
+
+### Lo que ya funciona (completo hasta Fase 7.7)
+
+**Sistema de temas claro/oscuro completamente migrado a todas las pantallas:**
+- `lib/ThemeContext.tsx` con `ThemeProvider` y `useTheme()` hook
+- `constants/theme.ts` con `darkColors` y `lightColors` (paleta Arcade Sport)
+- **Todas** las pantallas y componentes migrados a `useTheme()` — ninguna pantalla usa `colors` estático:
+  - `app/_layout.tsx` (pantalla de carga)
+  - `app/(app)/_layout.tsx`
+  - `app/(app)/index.tsx` (home)
+  - `app/(auth)/_layout.tsx`, `welcome.tsx`, `login.tsx`, `register.tsx`
+  - `app/(app)/leagues/create.tsx`, `join.tsx`, `[id].tsx`
+  - `app/(app)/leagues/[id]/add-block.tsx`, `ranking.tsx`
+  - `app/(app)/blocks/[id]/index.tsx`, `log-attempt.tsx`
+  - `components/BlockCard.tsx`, `LeagueCard.tsx`, `Icon.tsx`
+
+---
+
+### Lo que ya funciona (completo hasta Fase 7.8)
 - Auth completo (registro, login, sesión persistida, logout)
-- Crear liguillas **sin fechas** — nombre, recompensa, código de acceso y máx. participantes
+- Crear liguillas **sin fechas** — nombre, recompensa, código de acceso, máx. participantes y toggle ranking visible
 - Unirse a liguillas por código
 - Home con listado de liguillas del usuario
 - Detalle de liguilla con info, código para compartir y lista de bloques con `BlockCard`
 - Navegación protegida: redirige a `/welcome` si no hay sesión
-- Formulario `add-block.tsx` — foto (galería/cámara), identificador y dificultad
+- Formulario `add-block.tsx` — foto (galería/cámara), identificador y dificultad (7 niveles)
 - Subida de fotos a Supabase Storage (bucket `block-photos`)
 - Pantalla de detalle de bloque `blocks/[id]/index.tsx` con foto, datos e indicador de resultado propio
-- **Botón "▶ Iniciar liguilla"** (solo creador): habilitado con ≥5 bloques, oculto una vez iniciada
-- **Reordenación y borrado de bloques** (solo disponibles antes de iniciar la liguilla)
+- **Botón "▶ Iniciar liguilla"** (solo creador): habilitado con ≥5 bloques, popup con date picker de inicio/fin
+- **Reordenación con ▲/▼ y borrado de bloques** (solo disponibles antes de iniciar la liguilla)
 - **Registro de resultados** `blocks/[id]/log-attempt.tsx` — selector de pegues, guardado único por bloque
-- **`BlockCard`** con indicador visual de resultado: ✓ pegues / ⚡ Flash / sin resultado / ✅ completados marcados con tick
-- **Ranking** `leagues/[id]/ranking.tsx` — tabla de participantes ordenada por puntuación con desempate
+- **`BlockCard`** con indicador visual de resultado y tick ✓ en bloques completados
+- **Ranking** `leagues/[id]/ranking.tsx` — tabla con desempate, Realtime, respeta `ranking_visible_during`
 - **`lib/scoring.ts`** — lógica pura de puntuación con multiplicadores por dificultad y 7 niveles
-- **Bloqueo de edición** al iniciar: una vez `start_date` ha llegado, se ocultan handles ▲/▼, botón 🗑️ y botón "+ Añadir"
-- **`LeagueCard`** corregida: muestra "⏳ Sin iniciar" cuando `start_date = null` (antes mostraba "Finalizada")
-- **Dificultades ampliadas** a 7 niveles: principiante, novato, medio, avanzado, experimentado, élite, profesional
+- **Bloqueo de edición** al iniciar: una vez `start_date` ha llegado, se ocultan handles, botón 🗑️ y botón "+ Añadir"
+- **Fechas de inicio/fin con hora** (cuartos de hora: 00/15/30/45) — date picker web + modal nativo móvil
+- **Cuenta atrás** en las cards del home cuando quedan ≤3 días para terminar la liga
+- **`LeagueCard`** muestra "⏳ Sin iniciar" / "🟢 Comienza DD/MM HH:MM" / "En curso" / "🏁 Finalizada" según estado
+- **Sistema de temas oscuro/claro** — botón engranaje en home, modal selector, persiste en localStorage
+- **Migración global a `useTheme()`** — todas las pantallas, layouts y componentes usan colores dinámicos
 
 ### Pantalla de ranking (botón ya funcional)
 - **`🏆 Ranking`** en `app/(app)/leagues/[id].tsx` → navega a `/(app)/leagues/[id]/ranking` ✅ implementado en Fase 5
@@ -305,11 +339,95 @@ npm run types:gen
 
 ## FASE 7 · Pulido visual y UX mínima
 
-- [ ] 7.1 Aplicar `theme.ts` de forma consistente en todos los componentes
-- [ ] 7.2 Añadir estados de **carga** (`ActivityIndicator`) en todas las pantallas con llamadas async
-- [ ] 7.3 Añadir estados **vacíos** cuando no hay liguillas, bloques o participantes
-- [ ] 7.4 Añadir manejo de **errores** con mensajes claros al usuario (toast o inline)
-- [ ] 7.5 Revisar flujo completo de extremo a extremo
+- [ ] 7.1 Aplicar `theme.ts` de forma consistente + sustituir emojis por iconos vectoriales (`@expo/vector-icons` · Ionicons)
+
+  **Librería elegida: `@expo/vector-icons` — set Ionicons** (ya instalada con Expo, funciona en web y móvil sin configuración extra)
+
+  **Inventario de iconos necesarios** (nombre Ionicons → reemplaza a):
+
+  | Uso | Ionicons | Reemplaza |
+  |---|---|---|
+  | Borrar bloque | `trash-outline` | 🗑️ |
+  | Mover arriba | *(eliminado — drag & drop)* | ▲ |
+  | Mover abajo | *(eliminado — drag & drop)* | ▼ |
+  | Drag handle | `reorder-three-outline` | ▲▼ |
+  | Añadir bloque | `add-circle-outline` | + Añadir |
+  | Ranking / trofeo | `trophy-outline` | 🏆 |
+  | Calendario / fecha | `calendar-outline` | 📅 |
+  | Hora | `time-outline` | 🕐 |
+  | Compartir / copiar | `copy-outline` | 📋 |
+  | Bloqueo ranking | `lock-closed-outline` | 🔒 |
+  | Ranking visible | `eye-outline` | 👁 |
+  | Iniciar liguilla | `play-circle-outline` | ▶ |
+  | Editar fechas | `create-outline` | ✏️ |
+  | Foto / cámara | `camera-outline` | 📸 |
+  | Galería | `image-outline` | — |
+  | Flash (resultado) | `flash-outline` | ⚡ |
+  | Encadenado (check) | `checkmark-circle-outline` | ✓ |
+  | Sin resultado | `ellipse-outline` | — |
+  | Participantes | `people-outline` | — |
+  | Código de acceso | `key-outline` | 🔑 |
+  | Volver / back | `arrow-back-outline` | ← |
+  | Logout | `log-out-outline` | — |
+  | Liguilla vacía | `grid-outline` | 🧱 |
+  | Home vacío | `albums-outline` | — |
+  | Unirse a liga | `enter-outline` | — |
+  | Crear liga | `add-outline` | — |
+  | Oro / 1er puesto | `medal-outline` + color #FFD700 | 🥇 |
+  | Plata / 2º puesto | `medal-outline` + color #C0C0C0 | 🥈 |
+  | Bronce / 3er puesto | `medal-outline` + color #CD7F32 | 🥉 |
+
+  **Crear componente `components/Icon.tsx`** — wrapper de Ionicons con tamaño y color del theme por defecto.
+
+- [x] 7.1.1 Crear `components/Icon.tsx` — wrapper de Ionicons
+- [x] 7.1.2 Sustituir emojis por `<Icon>` en `leagues/[id].tsx` (trash, drag, add, share, ranking, dates, back, play, edit)
+- [ ] **7.1.3 ← SIGUIENTE TAREA** — Sustituir emojis por `<Icon>` en `blocks/[id]/index.tsx` y `log-attempt.tsx`
+- [ ] 7.1.4 Sustituir emojis por `<Icon>` en `leagues/[id]/ranking.tsx` (trofeo, medallas, lock)
+- [x] 7.1.5 Sustituir emojis por `<Icon>` en `(app)/index.tsx` (home) y `leagues/create.tsx` (parcial — botones home)
+- [x] 7.1.6 **Corregir contraste date picker en web** — `colorScheme: 'dark'` + `color: '#FFFFFF'` explícito + `select` con borde y fondo `surfaceAlt`
+
+- [x] 7.2 ~~**Drag & drop para reordenar bloques**~~ → **Reemplazado por botones ▲/▼** (drag & drop descartado por incompatibilidad de `react-native-reanimated` en web)
+  - Los handles ▲/▼ vuelven a estar activos con iconos `chevron-up-outline` / `chevron-down-outline`
+  - Los extremos se deshabilitan correctamente (primero no puede subir, último no puede bajar)
+  - El nuevo orden se persiste en BD: `UPDATE blocks SET position = $i WHERE id = $id`
+  - Solo disponible antes de que la liga comience (`!isInProgress`)
+
+- [x] 7.3 Añadir estados de **carga** (`ActivityIndicator`) en todas las pantallas con llamadas async
+  - ✅ Home (`index.tsx`): spinner centrado + estado vacío contextual
+  - ✅ Detalle liguilla (`leagues/[id].tsx`): spinner de carga, error "no encontrada", estado vacío de bloques con texto diferenciado (creador vs participante)
+  - ✅ Ranking (`leagues/[id]/ranking.tsx`): spinner, error, estado vacío, pantalla bloqueada
+  - ✅ Detalle bloque (`blocks/[id]/index.tsx`): spinner, error con distinción error-de-red/no-encontrado + botón "Reintentar", estados bloqueados
+  - ✅ Registro resultado (`blocks/[id]/log-attempt.tsx`): spinner, error, pantallas de "no iniciada" y "finalizada"
+  - ✅ Crear liguilla (`leagues/create.tsx`): ActivityIndicator en botón + tarjeta de error inline (reemplaza toast de error)
+  - ✅ Unirse a liguilla (`leagues/join.tsx`): ActivityIndicator en botón, error inline, navegación directa (sin Alert)
+  - ✅ Añadir bloque (`leagues/[id]/add-block.tsx`): errores inline por campo (foto/identificador), tarjeta de error general, mensaje de progreso "Subiendo foto…" / "Guardando bloque…"
+- [x] 7.4 Añadir estados **vacíos** cuando no hay liguillas, bloques o participantes
+- [x] 7.5 Añadir manejo de **errores** con mensajes claros al usuario (toast o inline)
+- [x] 7.6 Revisar flujo completo de extremo a extremo
+
+- [x] 7.7 **Selector de tema oscuro / claro + migración global a `useTheme()`**
+  - `lib/ThemeContext.tsx` con `ThemeProvider` y `useTheme()` hook
+  - Dos paletas en `constants/theme.ts`: `darkColors` (fondo `#121826`) y `lightColors` (fondo `#F5F7FA`)
+  - Mismos colores primarios/secundarios/acento en ambos temas (paleta Arcade Sport: primary `#7B61FF`, secondary `#00C2A8`, accent `#FFD93D`)
+  - Persistencia en `localStorage` (web) — sin dependencia extra de AsyncStorage
+  - Botón engranaje ⚙️ en la pantalla principal (header, junto a "Salir")
+  - Modal de ajustes con selector visual 🌙 Oscuro / ☀️ Claro con check del modo activo
+  - `ThemeProvider` envuelve toda la app desde `app/_layout.tsx`
+  - **Migración global:** todas las pantallas y componentes migrados de `colors` estático a `useTheme()` dinámico:
+    - Pantallas de auth: `welcome.tsx`, `login.tsx`, `register.tsx`, `(auth)/_layout.tsx`
+    - Pantallas de app: `(app)/_layout.tsx`, `index.tsx`, `leagues/create.tsx`, `leagues/join.tsx`, `leagues/[id].tsx`, `leagues/[id]/add-block.tsx`, `leagues/[id]/ranking.tsx`, `blocks/[id]/index.tsx`, `blocks/[id]/log-attempt.tsx`
+    - Componentes: `BlockCard.tsx`, `LeagueCard.tsx`, `Icon.tsx`
+    - Layout raíz: `app/_layout.tsx` (pantalla de carga también usa `useTheme()`)
+  - Todos los `StyleSheet.create()` con colores hardcodeados convertidos a estilos inline dinámicos
+  - El cambio de tema se aplica **instantáneamente en toda la aplicación** sin recargar
+
+- [x] 7.8 **Corrección de márgenes `SafeAreaView`** — pantallas que usaban `SafeAreaView` de `react-native` en lugar de `react-native-safe-area-context`:
+  - ✅ `leagues/create.tsx` — corregido
+  - ✅ `leagues/join.tsx` — corregido
+  - ✅ `(auth)/login.tsx` — corregido
+  - ✅ `(auth)/register.tsx` — corregido
+  - ✅ `(auth)/welcome.tsx` — corregido
+  - ✅ `blocks/[id]/log-attempt.tsx` — ya usaba el patrón correcto con `SafeAreaView` de `react-native-safe-area-context`
 
 ---
 

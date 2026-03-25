@@ -5,131 +5,90 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Image,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { colors, typography, spacing, radius, shadows } from '../../constants'
+import { typography, spacing, radius, shadows } from '../../constants'
+import { useTheme } from '../../lib/ThemeContext'
 
 export default function WelcomeScreen() {
   const router = useRouter()
+  const { colors, isDark } = useTheme()
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       {/* Hero */}
       <View style={styles.hero}>
-        <Text style={styles.emoji}>🧗</Text>
-        <Text style={styles.title}>BoulderLeague</Text>
-        <Text style={styles.subtitle}>
+        <Image
+          source={isDark
+            ? require('../../assets/logo-climbify.png')
+            : require('../../assets/logo-climbify-light.png')
+          }
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Crea liguillas, escala bloques{'\n'}y compite con tus amigos
         </Text>
       </View>
 
-      {/* Features */}
-      <View style={styles.card}>
-        <FeatureRow emoji="🏆" text="Crea o únete a liguillas privadas" />
-        <FeatureRow emoji="📸" text="Registra bloques con foto y dificultad" />
-        <FeatureRow emoji="📊" text="Ranking en tiempo real" />
-        <FeatureRow emoji="🔥" text="Puntuación por flash y pegues" />
-      </View>
 
       {/* Acciones */}
       <View style={styles.actions}>
         <TouchableOpacity
-          style={styles.buttonPrimary}
+          style={[styles.buttonPrimary, { backgroundColor: colors.primary }]}
           activeOpacity={0.8}
           onPress={() => router.push('/(auth)/register')}
         >
-          <Text style={styles.buttonPrimaryText}>Crear cuenta</Text>
+          <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Crear cuenta</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.buttonSecondary}
+          style={[styles.buttonSecondary, { borderColor: colors.border }]}
           activeOpacity={0.8}
           onPress={() => router.push('/(auth)/login')}
         >
-          <Text style={styles.buttonSecondaryText}>Ya tengo cuenta</Text>
+          <Text style={[styles.buttonSecondaryText, { color: colors.textSecondary }]}>Ya tengo cuenta</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   )
 }
 
-function FeatureRow({ emoji, text }: { emoji: string; text: string }) {
-  return (
-    <View style={styles.featureRow}>
-      <Text style={styles.featureEmoji}>{emoji}</Text>
-      <Text style={styles.featureText}>{text}</Text>
-    </View>
-  )
-}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingVertical: spacing.xl,
   },
   hero: {
     alignItems: 'center',
-    marginTop: spacing.xl,
+    marginBottom: spacing['2xl'],
+    gap: spacing.lg,
   },
-  emoji: {
-    fontSize: 72,
-    marginBottom: spacing.md,
-  },
-  title: {
-    fontSize: typography.size['3xl'],
-    fontWeight: typography.weight.extrabold,
-    color: colors.primary,
-    letterSpacing: -1,
-    marginBottom: spacing.sm,
+  logo: {
+    width: 320,
+    height: 88,
   },
   subtitle: {
     fontSize: typography.size.md,
-    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: typography.size.md * typography.lineHeight.relaxed,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.md,
-    ...shadows.md,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  featureEmoji: {
-    fontSize: 22,
-    width: 32,
-    textAlign: 'center',
-  },
-  featureText: {
-    fontSize: typography.size.md,
-    color: colors.textPrimary,
-    fontWeight: typography.weight.medium,
-    flex: 1,
   },
   actions: {
     gap: spacing.sm,
   },
   buttonPrimary: {
-    backgroundColor: colors.primary,
     borderRadius: radius.md,
     paddingVertical: spacing.md,
     alignItems: 'center',
     ...shadows.glow,
   },
   buttonPrimaryText: {
-    color: colors.textInverse,
     fontSize: typography.size.lg,
     fontWeight: typography.weight.bold,
   },
@@ -139,12 +98,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
   },
   buttonSecondaryText: {
-    color: colors.textSecondary,
     fontSize: typography.size.lg,
     fontWeight: typography.weight.medium,
   },
 })
-

@@ -1,118 +1,184 @@
 /**
  * theme.ts — Sistema de diseño de BoulderLeague
  *
- * Paleta inspirada en "arcade sport": colores vibrantes sobre fondos oscuros,
- * con acentos neón que evocan la energía del rocódromo y el juego competitivo.
- *
- * Recursos de referencia: /recursos_graficos/paleta arcade sport.png
+ * Paleta: Arcade Sport (#7B61FF / #00C2A8 / #FFD93D)
+ * Dos modos: dark (fondo #121826) y light (fondo #F5F7FA)
  */
 
 // ─────────────────────────────────────────────
-// COLORES
+// COLORES COMPARTIDOS (no cambian con el tema)
 // ─────────────────────────────────────────────
 
-export const colors = {
-  // Fondos
-  background: '#0F0F14',       // Negro azulado — fondo principal
-  surface: '#1A1A24',          // Superficie de tarjetas y modales
-  surfaceAlt: '#23232F',       // Superficie alternativa (inputs, rows)
+const brand = {
+  primary:           '#7B61FF',
+  primaryLight:      '#A48FFF',
+  primaryDark:       '#5A3FD6',
+  primaryMuted:      'rgba(123,97,255,0.15)',
 
-  // Marca / Primario
-  primary: '#C8FF00',          // Verde lima neón — acción principal, CTA
-  primaryDark: '#8FB800',      // Verde lima oscuro — estados pressed
+  secondary:         '#00C2A8',
+  secondaryLight:    '#33D4BD',
+  secondaryDark:     '#009E88',
+  secondaryMuted:    'rgba(0,194,168,0.15)',
 
-  // Secundario / Acento
-  accent: '#FF6B35',           // Naranja escalada — flashes, logros destacados
-  accentAlt: '#FF3CAC',        // Rosa neón — badges, highlights especiales
+  accent:            '#FFD93D',
+  accentLight:       '#FFE676',
+  accentDark:        '#E6C200',
+  accentMuted:       'rgba(255,217,61,0.15)',
 
-  // Estado
-  success: '#00E096',          // Verde menta — resultados positivos, encadenado
-  warning: '#FFD60A',          // Amarillo — avisos, dificultad media
-  error: '#FF4D4D',            // Rojo — errores, validaciones
+  success:           '#22C55E',
+  successLight:      'rgba(34,197,94,0.15)',
+  successDark:       '#16A34A',
 
-  // Texto
-  textPrimary: '#FFFFFF',      // Blanco — texto principal sobre fondos oscuros
-  textSecondary: '#A0A0B8',    // Gris azulado — texto secundario, subtítulos
-  textMuted: '#55556A',        // Gris oscuro — placeholders, texto desactivado
-  textInverse: '#0F0F14',      // Negro — texto sobre fondos claros (botón primary)
+  warning:           '#F97316',
+  warningLight:      'rgba(249,115,22,0.15)',
+  warningDark:       '#C2410C',
 
-  // Bordes
-  border: '#2C2C3E',           // Borde sutil para tarjetas e inputs
-  borderFocus: '#C8FF00',      // Borde activo en inputs con foco
+  error:             '#EF4444',
+  errorLight:        'rgba(239,68,68,0.15)',
+  errorDark:         '#B91C1C',
 
-  // Dificultades (sistema de puntuación)
-  diffNovato: '#6BCB77',       // Verde suave
-  diffMedio: '#FFD60A',        // Amarillo
-  diffAvanzado: '#FF6B35',     // Naranja
-  diffExperimentado: '#FF3CAC',// Rosa
-  diffProfesional: '#BF5AF2',  // Púrpura
+  info:              '#38BDF8',
+  infoLight:         'rgba(56,189,248,0.15)',
+  infoDark:          '#0284C7',
 
-  // Resultados (intentos)
-  resultFlash: '#C8FF00',      // Verde lima — flash
-  resultSend: '#00E096',       // Verde menta — encadenado
-  resultAttempted: '#A0A0B8',  // Gris — intentado sin encadenar
-  resultUntried: '#55556A',    // Gris oscuro — sin intentar
+  // Dificultades (7 niveles)
+  diffNovato:        '#6BCB77',
+  diffIniciado:      '#A8D84E',
+  diffMedio:         '#FFD93D',
+  diffAvanzado:      '#F97316',
+  diffExperimentado: '#EF4444',
+  diffElite:         '#7B61FF',
+  diffProfesional:   '#00C2A8',
 
-  // Transparencias útiles
-  overlay: 'rgba(15, 15, 20, 0.85)',
-  shimmer: 'rgba(200, 255, 0, 0.08)',
-} as const;
+  // Resultados
+  resultFlash:       '#FFD93D',
+  resultSend:        '#22C55E',
+  resultAttempted:   '#A0AABB',
+  resultUntried:     '#6B7A8D',
+
+  white: '#FFFFFF',
+  black: '#000000',
+} as const
+
+// ─────────────────────────────────────────────
+// TEMA OSCURO (default)
+// ─────────────────────────────────────────────
+
+const darkColors = {
+  ...brand,
+
+  background:    '#121826',
+  surface:       '#1C2537',
+  surfaceAlt:    '#243048',
+  surfaceLight:  '#F5F7FA',
+
+  textPrimary:   '#F5F7FA',
+  textSecondary: '#A0AABB',
+  textMuted:     '#6B7A8D',
+  textInverse:   '#121826',
+  textOnPrimary: '#FFFFFF',
+
+  border:        '#2A3447',
+  borderLight:   '#E2E8F0',
+  borderFocus:   '#7B61FF',
+
+  overlay:       'rgba(0,0,0,0.6)',
+  shimmer:       'rgba(123,97,255,0.08)',
+  divider:       '#1E2D40',
+  skeleton:      '#2A3447',
+} as const
+
+// ─────────────────────────────────────────────
+// TEMA CLARO
+// ─────────────────────────────────────────────
+
+const lightColors = {
+  ...brand,
+
+  background:    '#F5F7FA',
+  surface:       '#FFFFFF',
+  surfaceAlt:    '#EEF1F6',
+  surfaceLight:  '#F5F7FA',
+
+  textPrimary:   '#0F172A',
+  textSecondary: '#475569',
+  textMuted:     '#94A3B8',
+  textInverse:   '#FFFFFF',
+  textOnPrimary: '#FFFFFF',
+
+  border:        '#DDE3EE',
+  borderLight:   '#E2E8F0',
+  borderFocus:   '#7B61FF',
+
+  overlay:       'rgba(0,0,0,0.4)',
+  shimmer:       'rgba(123,97,255,0.06)',
+  divider:       '#E2E8F0',
+  skeleton:      '#E2E8F0',
+} as const
+
+// ─────────────────────────────────────────────
+// Export dinámico por modo
+// ─────────────────────────────────────────────
+
+export type ThemeMode = 'dark' | 'light'
+
+export function getColors(mode: ThemeMode) {
+  return mode === 'light' ? lightColors : darkColors
+}
+
+// Export estático (retrocompatibilidad — dark por defecto)
+export const colors = darkColors
 
 // ─────────────────────────────────────────────
 // TIPOGRAFÍA
 // ─────────────────────────────────────────────
 
 export const typography = {
-  // Familias — se usará la fuente del sistema por defecto en el MVP
-  // En Fase 7 se puede integrar una fuente custom (ej: Space Grotesk, Inter)
   fontFamily: {
-    regular: undefined,   // System default
+    regular: undefined,
     medium: undefined,
     bold: undefined,
   },
 
-  // Tamaños
   size: {
-    xs: 11,
-    sm: 13,
-    md: 15,
-    lg: 17,
-    xl: 20,
+    xs:   11,
+    sm:   13,
+    md:   15,
+    lg:   17,
+    xl:   20,
     '2xl': 24,
     '3xl': 30,
     '4xl': 38,
   },
 
-  // Pesos
   weight: {
-    regular: '400' as const,
-    medium: '500' as const,
-    semibold: '600' as const,
-    bold: '700' as const,
+    regular:   '400' as const,
+    medium:    '500' as const,
+    semibold:  '600' as const,
+    bold:      '700' as const,
     extrabold: '800' as const,
   },
 
-  // Interlineado
   lineHeight: {
-    tight: 1.2,
-    normal: 1.5,
+    tight:   1.2,
+    normal:  1.5,
     relaxed: 1.75,
   },
-} as const;
+} as const
 
 // ─────────────────────────────────────────────
-// ESPACIADO (escala de 4px)
+// ESPACIADO
 // ─────────────────────────────────────────────
 
 export const spacing = {
-  xs:   4,
-  sm:   8,
-  md:  16,
-  lg:  24,
-  xl:  32,
+  xs:    4,
+  sm:    8,
+  md:   16,
+  lg:   24,
+  xl:   32,
   '2xl': 48,
   '3xl': 64,
-} as const;
+} as const
 
 // ─────────────────────────────────────────────
 // BORDES REDONDEADOS
@@ -124,7 +190,7 @@ export const radius = {
   lg:  18,
   xl:  24,
   full: 9999,
-} as const;
+} as const
 
 // ─────────────────────────────────────────────
 // SOMBRAS
@@ -146,13 +212,13 @@ export const shadows = {
     elevation: 6,
   },
   glow: {
-    shadowColor: '#C8FF00',
+    shadowColor: '#7B61FF',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 12,
     elevation: 8,
   },
-} as const;
+} as const
 
 // ─────────────────────────────────────────────
 // EXPORT UNIFICADO
@@ -164,7 +230,6 @@ const theme = {
   spacing,
   radius,
   shadows,
-} as const;
+} as const
 
-export default theme;
-
+export default theme

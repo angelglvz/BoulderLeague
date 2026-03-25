@@ -11,7 +11,9 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
 import { calcScore, GOES_LABELS, goesFromDB, type Goes } from '../../../../lib/scoring'
-import { colors, typography, spacing, radius } from '../../../../constants'
+import { typography, spacing, radius } from '../../../../constants'
+import { useTheme } from '../../../../lib/ThemeContext'
+import { Icon } from '../../../../components'
 import type { Block, Attempt } from '../../../../types'
 
 const GOES_OPTIONS: Goes[] = [0, 1, 2, 3, 4, 5, 6]
@@ -22,12 +24,14 @@ type LeagueStatus = 'not_started' | 'in_progress' | 'finished'
 export default function LogAttemptScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  const { colors } = useTheme()
 
   const [block, setBlock] = useState<Block | null>(null)
   const [existingAttempt, setExistingAttempt] = useState<Attempt | null>(null)
   const [selectedGoes, setSelectedGoes] = useState<Goes>(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>('not_started')
 
@@ -99,6 +103,7 @@ export default function LogAttemptScreen() {
 
     const score = calcScore(selectedGoes, block.difficulty)
     setSaving(true)
+    setSaveError(null)
 
     try {
       const { error } = await supabase
@@ -113,8 +118,8 @@ export default function LogAttemptScreen() {
       if (error) throw error
       router.replace(`/(app)/blocks/${block.id}`)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Error al guardar'
-      alert('❌ ' + msg)
+      const msg = e instanceof Error ? e.message : 'Error al guardar el resultado'
+      setSaveError(msg)
     } finally {
       setSaving(false)
     }
@@ -122,7 +127,7 @@ export default function LogAttemptScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     )
@@ -130,27 +135,24 @@ export default function LogAttemptScreen() {
 
   if (!block) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Bloque no encontrado</Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.error }]}>Bloque no encontrado</Text>
       </View>
     )
   }
 
-  // ── Pantalla de bloqueo: liga no iniciada ────────────────────────────────
   if (leagueStatus === 'not_started') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.blockedScreen}>
-          <TouchableOpacity
-            onPress={() => router.replace(`/(app)/blocks/${id}`)}
-            style={styles.backButton}
-          >
-            <Text style={styles.backText}>← Volver</Text>
+          <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
+            <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
           <View style={styles.blockedCard}>
             <Text style={styles.blockedEmoji}>⏳</Text>
-            <Text style={styles.blockedTitle}>La liguilla aún no ha comenzado</Text>
-            <Text style={styles.blockedSubtitle}>
+            <Text style={[styles.blockedTitle, { color: colors.textPrimary }]}>La liguilla aún no ha comenzado</Text>
+            <Text style={[styles.blockedSubtitle, { color: colors.textMuted }]}>
               Podrás registrar tus resultados una vez que el creador inicie la liguilla.
             </Text>
           </View>
@@ -159,21 +161,18 @@ export default function LogAttemptScreen() {
     )
   }
 
-  // ── Pantalla de bloqueo: liga finalizada ─────────────────────────────────
   if (leagueStatus === 'finished') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.blockedScreen}>
-          <TouchableOpacity
-            onPress={() => router.replace(`/(app)/blocks/${id}`)}
-            style={styles.backButton}
-          >
-            <Text style={styles.backText}>← Volver</Text>
+          <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
+            <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
           <View style={styles.blockedCard}>
             <Text style={styles.blockedEmoji}>🏁</Text>
-            <Text style={styles.blockedTitle}>La liguilla ha finalizado</Text>
-            <Text style={styles.blockedSubtitle}>
+            <Text style={[styles.blockedTitle, { color: colors.textPrimary }]}>La liguilla ha finalizado</Text>
+            <Text style={[styles.blockedSubtitle, { color: colors.textMuted }]}>
               El período de registro de resultados ha terminado.
             </Text>
           </View>
@@ -183,31 +182,27 @@ export default function LogAttemptScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Cabecera */}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
-          <Text style={styles.backText}>← Volver</Text>
+          <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+          <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>✍️ Registrar resultado</Text>
-        <Text style={styles.blockName}>{block.identifier}</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Registrar resultado</Text>
+        <Text style={[styles.blockName, { color: colors.textSecondary }]}>{block.identifier}</Text>
 
-        {/* Si ya hay intento registrado → pantalla bloqueada */}
         {existingAttempt ? (
-          <View style={styles.lockedCard}>
+          <View style={[styles.lockedCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={styles.lockedIcon}>🔒</Text>
-            <Text style={styles.lockedTitle}>Resultado ya registrado</Text>
-            <Text style={styles.lockedText}>
+            <Text style={[styles.lockedTitle, { color: colors.textPrimary }]}>Resultado ya registrado</Text>
+            <Text style={[styles.lockedText, { color: colors.textSecondary }]}>
               Solo se puede registrar un resultado por bloque.{'\n'}
               Una vez guardado no se puede modificar.
             </Text>
-            <View style={styles.lockedResult}>
-              <Text style={styles.lockedResultLabel}>Tu resultado:</Text>
-              <Text style={styles.lockedResultValue}>
+            <View style={[styles.lockedResult, { backgroundColor: colors.background }]}>
+              <Text style={[styles.lockedResultLabel, { color: colors.textMuted }]}>Tu resultado:</Text>
+              <Text style={[styles.lockedResultValue, { color: colors.primary }]}>
                 {existingAttempt.number_of_goes === 0
                   ? 'Sin encadenar'
                   : existingAttempt.number_of_goes === 1
@@ -218,28 +213,35 @@ export default function LogAttemptScreen() {
               </Text>
             </View>
             <TouchableOpacity
-              style={styles.backFullButton}
+              style={[styles.backFullButton, { borderColor: colors.border }]}
               onPress={() => router.replace(`/(app)/blocks/${id}`)}
               activeOpacity={0.8}
             >
-              <Text style={styles.backFullButtonText}>← Volver al bloque</Text>
+              <Text style={[styles.backFullButtonText, { color: colors.textSecondary }]}>← Volver al bloque</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
-            {/* Selector de pegues */}
-            <Text style={styles.sectionLabel}>¿Cuántos pegues necesitaste?</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>¿Cuántos pegues necesitaste?</Text>
             <View style={styles.optionsGrid}>
               {GOES_OPTIONS.map((g) => {
                 const isSelected = g === selectedGoes
                 return (
                   <TouchableOpacity
                     key={g}
-                    style={[styles.option, isSelected && styles.optionSelected]}
-                    onPress={() => setSelectedGoes(g)}
+                    style={[
+                      styles.option,
+                      { borderColor: colors.border, backgroundColor: colors.surface },
+                      isSelected && { borderColor: colors.primary, backgroundColor: colors.primary + '20' },
+                    ]}
+                    onPress={() => { setSelectedGoes(g); setSaveError(null) }}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                    <Text style={[
+                      styles.optionText,
+                      { color: isSelected ? colors.primary : colors.textSecondary },
+                      isSelected && { fontWeight: typography.weight.bold },
+                    ]}>
                       {GOES_LABELS[g]}
                     </Text>
                   </TouchableOpacity>
@@ -247,9 +249,15 @@ export default function LogAttemptScreen() {
               })}
             </View>
 
-            {/* Botón guardar */}
+            {saveError && (
+              <View style={[styles.errorCard, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}>
+                <Icon name="alert-circle-outline" size={16} color={colors.error} />
+                <Text style={[styles.errorCardText, { color: colors.error }]}>{saveError}</Text>
+              </View>
+            )}
+
             <TouchableOpacity
-              style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+              style={[styles.saveButton, { backgroundColor: colors.primary }, saving && styles.saveButtonDisabled]}
               onPress={handleSave}
               disabled={saving}
               activeOpacity={0.8}
@@ -257,7 +265,7 @@ export default function LogAttemptScreen() {
               {saving ? (
                 <ActivityIndicator color={colors.textInverse} />
               ) : (
-                <Text style={styles.saveButtonText}>💾 Guardar resultado</Text>
+                <Text style={[styles.saveButtonText, { color: colors.textInverse }]}>💾 Guardar resultado</Text>
               )}
             </TouchableOpacity>
           </>
@@ -268,171 +276,35 @@ export default function LogAttemptScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scroll: {
-    padding: spacing.lg,
-    gap: spacing.lg,
-  },
-  backButton: {
-    marginBottom: spacing.xs,
-  },
-  backText: {
-    color: colors.textSecondary,
-    fontSize: typography.size.md,
-  },
-  title: {
-    fontSize: typography.size['2xl'],
-    fontWeight: typography.weight.extrabold,
-    color: colors.textPrimary,
-  },
-  blockName: {
-    fontSize: typography.size.lg,
-    color: colors.textSecondary,
-    marginTop: -spacing.sm,
-  },
-  existingBadge: {
-    display: 'none', // ya no se usa
-  },
-  existingText: {
-    display: 'none', // ya no se usa
-  },
-  lockedCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    alignItems: 'center',
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  lockedIcon: {
-    fontSize: 40,
-  },
-  lockedTitle: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  lockedText: {
-    fontSize: typography.size.sm,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  lockedResult: {
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    gap: spacing.xs,
-    width: '100%',
-  },
-  lockedResultLabel: {
-    fontSize: typography.size.xs,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  lockedResultValue: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
-    color: colors.primary,
-  },
-  backFullButton: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  backFullButtonText: {
-    fontSize: typography.size.md,
-    color: colors.textSecondary,
-  },
-  sectionLabel: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.semibold,
-    color: colors.textPrimary,
-  },
-  optionsGrid: {
-    gap: spacing.sm,
-  },
-  option: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-  },
-  optionSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '20',
-  },
-  optionText: {
-    fontSize: typography.size.md,
-    color: colors.textSecondary,
-    fontWeight: typography.weight.medium,
-  },
-  optionTextSelected: {
-    color: colors.primary,
-    fontWeight: typography.weight.bold,
-  },
-  saveButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    color: colors.textInverse,
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: typography.size.md,
-  },
-  blockedScreen: {
-    flex: 1,
-    padding: spacing.lg,
-  },
-  blockedCard: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-  },
-  blockedEmoji: {
-    fontSize: 64,
-  },
-  blockedTitle: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.extrabold,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  blockedSubtitle: {
-    fontSize: typography.size.md,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
+  container:          { flex: 1 },
+  centered:           { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  scroll:             { padding: spacing.lg, gap: spacing.lg },
+  backButton:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.xs },
+  backText:           { fontSize: typography.size.md },
+  title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
+  blockName:          { fontSize: typography.size.lg, marginTop: -spacing.sm },
+  lockedCard:         { borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center', gap: spacing.md, borderWidth: 1 },
+  lockedIcon:         { fontSize: 40 },
+  lockedTitle:        { fontSize: typography.size.xl, fontWeight: typography.weight.bold, textAlign: 'center' },
+  lockedText:         { fontSize: typography.size.sm, textAlign: 'center', lineHeight: 20 },
+  lockedResult:       { borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, alignItems: 'center', gap: spacing.xs, width: '100%' },
+  lockedResultLabel:  { fontSize: typography.size.xs, textTransform: 'uppercase', letterSpacing: 1 },
+  lockedResultValue:  { fontSize: typography.size.xl, fontWeight: typography.weight.bold },
+  backFullButton:     { marginTop: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl, borderRadius: radius.lg, borderWidth: 1 },
+  backFullButtonText: { fontSize: typography.size.md },
+  sectionLabel:       { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
+  optionsGrid:        { gap: spacing.sm },
+  option:             { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: 2, alignItems: 'center' },
+  optionText:         { fontSize: typography.size.md, fontWeight: typography.weight.medium },
+  saveButton:         { borderRadius: radius.lg, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.sm },
+  saveButtonDisabled: { opacity: 0.6 },
+  saveButtonText:     { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  errorText:          { fontSize: typography.size.md },
+  errorCard:          { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radius.md, padding: spacing.md, borderWidth: 1 },
+  errorCardText:      { fontSize: typography.size.sm, flex: 1 },
+  blockedScreen:      { flex: 1, padding: spacing.lg },
+  blockedCard:        { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
+  blockedEmoji:       { fontSize: 64 },
+  blockedTitle:       { fontSize: typography.size.xl, fontWeight: typography.weight.extrabold, textAlign: 'center' },
+  blockedSubtitle:    { fontSize: typography.size.md, textAlign: 'center', lineHeight: 22 },
 })

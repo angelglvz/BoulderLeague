@@ -1,24 +1,23 @@
-import { useEffect } from 'react';
+import 'react-native-reanimated'
+import { useEffect } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
-import { colors } from '../constants';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useSession } from '../hooks';
+import { ThemeProvider, useTheme } from '../lib/ThemeContext';
 
-export default function RootLayout() {
+function RootLayoutNav() {
   const { session, loading } = useSession();
   const router = useRouter();
   const segments = useSegments();
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (loading) return;
-
     const inAuthGroup = segments[0] === '(auth)';
-
     if (!session && !inAuthGroup) {
-      // Sin sesión y fuera del grupo auth → redirigir a bienvenida
       router.replace('/(auth)/welcome');
     } else if (session && inAuthGroup) {
-      // Con sesión y dentro del grupo auth → redirigir al home
       router.replace('/(app)');
     }
   }, [session, loading, segments]);
@@ -33,3 +32,15 @@ export default function RootLayout() {
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }
+
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RootLayoutNav />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
+
+

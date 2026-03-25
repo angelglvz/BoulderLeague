@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import {
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
+  View, Text, StyleSheet, TouchableOpacity,
   TextInput, ScrollView, ActivityIndicator, Switch, Animated, Platform,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
-import { colors, typography, spacing, radius, shadows } from '../../../constants'
+import { typography, spacing, radius, shadows } from '../../../constants'
+import { useTheme } from '../../../lib/ThemeContext'
+import { Icon } from '../../../components'
 
 const nativeDriver = Platform.OS !== 'web'
 
@@ -33,6 +36,7 @@ function useToast() {
 export default function CreateLeagueScreen() {
   const router = useRouter()
   const { user } = useSession()
+  const { colors } = useTheme()
   const toast = useToast()
 
   const [name, setName] = useState('')
@@ -43,19 +47,24 @@ export default function CreateLeagueScreen() {
   const [rankingVisibleDuring, setRankingVisibleDuring] = useState(true)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-
+  const [generalError, setGeneralError] = useState<string | null>(null)
   function validate() {
     const e: Record<string, string> = {}
     if (!name.trim()) e.name = 'El nombre es obligatorio'
-    if (isPrivate && !accessCode.trim()) e.accessCode = 'El código de acceso es obligatorio'
+    if (isPrivate && accessCode.trim().length < 4) e.accessCode = 'El código debe tener al menos 4 caracteres'
     if (maxParticipants && Number.isNaN(Number(maxParticipants))) e.maxParticipants = 'Debe ser un número'
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
+  const isCreateDisabled = loading
+    || !name.trim()
+    || (isPrivate && accessCode.trim().length < 4)
+
   async function handleCreate() {
     if (!validate()) return
     setLoading(true)
+    setGeneralError(null)
 
     const { data: league, error } = await supabase
       .from('leagues')
@@ -75,7 +84,7 @@ export default function CreateLeagueScreen() {
 
     if (error) {
       setLoading(false)
-      toast.show('❌ Error al crear la liguilla')
+      setGeneralError(`No se pudo crear la liguilla. ${error.message ?? ''}`)
       return
     }
 
@@ -92,39 +101,43 @@ export default function CreateLeagueScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.replace('/(app)')}>
-            <Text style={styles.backText}>← Volver</Text>
+          <TouchableOpacity onPress={() => router.replace('/(app)')} style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color={colors.textSecondary} />
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Nueva liguilla</Text>
-          <Text style={styles.subtitle}>Añade los bloques y después inicia la liguilla desde el detalle</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Nueva liguilla</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Añade los bloques y después inicia la liguilla desde el detalle</Text>
         </View>
 
         <View style={styles.form}>
-          <Field label="Nombre" error={errors.name}>
+          <Field label="Nombre" error={errors.name} colors={colors}>
             <TextInput
-              style={[styles.input, errors.name && styles.inputError]}
+              style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.name ? colors.error : colors.border }]}
               placeholder="Nombre de la liguilla"
               placeholderTextColor={colors.textMuted}
               value={name} onChangeText={setName}
             />
           </Field>
 
-          <Field label="Recompensa" hint="Opcional">
+          <Field label="Recompensa" hint="Opcional" colors={colors}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: colors.border }]}
               placeholder="Ej: Cena en el bar del rocódromo"
               placeholderTextColor={colors.textMuted}
               value={reward} onChangeText={setReward}
             />
           </Field>
 
-          <Field label="Máx. participantes" hint="Vacío = ilimitado" error={errors.maxParticipants}>
+          <Field label="Máx. participantes" hint="Vacío = ilimitado" error={errors.maxParticipants} colors={colors}>
             <TextInput
-              style={[styles.input, errors.maxParticipants && styles.inputError]}
+              style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.maxParticipants ? colors.error : colors.border }]}
               placeholder="Ej: 20"
               placeholderTextColor={colors.textMuted}
               value={maxParticipants} onChangeText={setMaxParticipants}
@@ -132,10 +145,10 @@ export default function CreateLeagueScreen() {
             />
           </Field>
 
-          <View style={styles.switchRow}>
+          <View style={[styles.switchRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View>
-              <Text style={styles.label}>Liguilla privada</Text>
-              <Text style={styles.hint}>Acceso solo por código</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Liguilla privada</Text>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>Acceso solo por código</Text>
             </View>
             <Switch
               value={isPrivate} onValueChange={setIsPrivate}
@@ -144,10 +157,10 @@ export default function CreateLeagueScreen() {
             />
           </View>
 
-          <View style={styles.switchRow}>
+          <View style={[styles.switchRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={{ flex: 1, marginRight: spacing.md }}>
-              <Text style={styles.label}>Ranking visible durante la liguilla</Text>
-              <Text style={styles.hint}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Ranking visible durante la liguilla</Text>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>
                 {rankingVisibleDuring
                   ? 'Todos los participantes verán el ranking en tiempo real'
                   : 'El ranking se revelará solo al terminar la liguilla'}
@@ -161,51 +174,70 @@ export default function CreateLeagueScreen() {
           </View>
 
           {isPrivate && (
-            <Field label="Código de acceso" error={errors.accessCode}>
+            <Field
+              label="Código de acceso"
+              hint={accessCode.trim().length < 4 ? `Mín. 4 caracteres (${accessCode.trim().length}/4)` : undefined}
+              error={errors.accessCode}
+              colors={colors}
+            >
               <TextInput
-                style={[styles.input, errors.accessCode && styles.inputError]}
+                style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.accessCode ? colors.error : colors.border }]}
                 placeholder="Ej: ESCALA24"
                 placeholderTextColor={colors.textMuted}
                 value={accessCode}
-                onChangeText={t => setAccessCode(t.toUpperCase())}
+                onChangeText={t => { setAccessCode(t.toUpperCase()); setErrors(e => ({ ...e, accessCode: undefined })) }}
                 autoCapitalize="characters"
+                maxLength={20}
               />
             </Field>
           )}
         </View>
 
+        {/* Error general */}
+        {generalError && (
+          <View style={[styles.errorCard, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}>
+            <Text style={[styles.errorCardText, { color: colors.error }]}>⚠️ {generalError}</Text>
+          </View>
+        )}
+
         <TouchableOpacity
-          style={[styles.buttonPrimary, loading && styles.buttonDisabled]}
-          onPress={handleCreate} activeOpacity={0.8} disabled={loading}
+          style={[
+            styles.buttonPrimary,
+            { backgroundColor: colors.primary },
+            isCreateDisabled && styles.buttonDisabled,
+          ]}
+          onPress={handleCreate}
+          activeOpacity={isCreateDisabled ? 1 : 0.8}
+          disabled={isCreateDisabled}
         >
           {loading
             ? <ActivityIndicator color={colors.textInverse} />
-            : <Text style={styles.buttonPrimaryText}>Crear liguilla</Text>
+            : <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Crear liguilla</Text>
           }
         </TouchableOpacity>
       </ScrollView>
 
       {/* Toast */}
       {toast.visible && (
-        <Animated.View style={[styles.toast, { opacity: toast.opacity }]}>
-          <Text style={styles.toastText}>{toast.message}</Text>
+        <Animated.View style={[styles.toast, { opacity: toast.opacity, backgroundColor: colors.surface, borderColor: colors.primary }]}>
+          <Text style={[styles.toastText, { color: colors.textPrimary }]}>{toast.message}</Text>
         </Animated.View>
       )}
     </SafeAreaView>
   )
 }
 
-function Field({ label, error, hint, children }: {
-  label: string; error?: string; hint?: string; children: React.ReactNode
+function Field({ label, error, hint, children, colors }: {
+  label: string; error?: string; hint?: string; children: React.ReactNode; colors: any
 }) {
   return (
     <View style={fieldStyles.group}>
       <View style={fieldStyles.labelRow}>
-        <Text style={fieldStyles.label}>{label}</Text>
-        {hint && <Text style={fieldStyles.hint}>{hint}</Text>}
+        <Text style={[fieldStyles.label, { color: colors.textSecondary }]}>{label}</Text>
+        {hint && <Text style={[fieldStyles.hint, { color: colors.textMuted }]}>{hint}</Text>}
       </View>
       {children}
-      {error && <Text style={fieldStyles.error}>{error}</Text>}
+      {error && <Text style={[fieldStyles.error, { color: colors.error }]}>{error}</Text>}
     </View>
   )
 }
@@ -213,26 +245,29 @@ function Field({ label, error, hint, children }: {
 const fieldStyles = StyleSheet.create({
   group: { gap: spacing.xs },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  label: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  hint: { fontSize: typography.size.xs, color: colors.textMuted },
-  error: { fontSize: typography.size.sm, color: colors.error },
+  label: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  hint: { fontSize: typography.size.xs },
+  error: { fontSize: typography.size.sm },
 })
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
-  header: { marginBottom: spacing.xl },
-  backText: { color: colors.textSecondary, fontSize: typography.size.md, marginBottom: spacing.md },
-  title: { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary },
-  subtitle: { fontSize: typography.size.sm, color: colors.textMuted, marginTop: spacing.xs },
-  form: { gap: spacing.md, marginBottom: spacing.xl },
-  input: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, fontSize: typography.size.md, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border },
-  inputError: { borderColor: colors.error },
-  label: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  hint: { fontSize: typography.size.xs, color: colors.textMuted },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
-  buttonPrimary: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.xl },
-  buttonDisabled: { opacity: 0.6 },
-  buttonPrimaryText: { color: colors.textInverse, fontSize: typography.size.lg, fontWeight: typography.weight.bold },
-  toast: { position: 'absolute', bottom: spacing.xl, left: spacing.lg, right: spacing.lg, backgroundColor: colors.surface, borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: colors.primary, ...shadows.glow },
-  toastText: { color: colors.textPrimary, fontSize: typography.size.md, fontWeight: typography.weight.semibold },
+  container:          { flex: 1 },
+  scroll:             { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xl },
+  header:             { marginBottom: spacing.xl },
+  backButton:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.lg },
+  backText:           { fontSize: typography.size.md },
+  title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
+  subtitle:           { fontSize: typography.size.sm, marginTop: spacing.xs },
+  form:               { gap: spacing.md, marginBottom: spacing.xl },
+  input:              { borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, fontSize: typography.size.md, borderWidth: 1 },
+  label:              { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  hint:               { fontSize: typography.size.xs },
+  switchRow:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderRadius: radius.md, padding: spacing.md, borderWidth: 1 },
+  buttonPrimary:      { borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.xl },
+  buttonDisabled:     { opacity: 0.6 },
+  buttonPrimaryText:  { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
+  errorCard:          { borderRadius: radius.md, padding: spacing.md, borderWidth: 1, marginBottom: spacing.md },
+  errorCardText:      { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  toast:              { position: 'absolute', bottom: spacing.xl, left: spacing.lg, right: spacing.lg, borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, alignItems: 'center', borderWidth: 1, ...shadows.glow },
+  toastText:          { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
 })

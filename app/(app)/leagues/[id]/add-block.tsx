@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -15,7 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../../lib/supabase'
-import { colors, typography, spacing, radius } from '../../../../constants'
+import { typography, spacing, radius } from '../../../../constants'
+import { useTheme } from '../../../../lib/ThemeContext'
+import { Icon } from '../../../../components'
 import type { Difficulty } from '../../../../types'
 
 const DIFFICULTIES: { label: string; value: Difficulty }[] = [
@@ -29,13 +31,35 @@ const DIFFICULTIES: { label: string; value: Difficulty }[] = [
 ]
 
 export default function AddBlockScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, blockId } = useLocalSearchParams<{ id: string; blockId?: string }>()
+  const isEditing = !!blockId
   const router = useRouter()
+  const { colors } = useTheme()
 
   const [identifier, setIdentifier] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [imageUri, setImageUri] = useState<string | null>(null)
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(isEditing)
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null)
+  const [errors, setErrors] = useState<{ identifier?: string; image?: string; general?: string }>({})
+
+  useEffect(() => {
+    if (isEditing && blockId) loadBlock(blockId)
+  }, [blockId])
+
+  async function loadBlock(bId: string) {
+    setInitialLoading(true)
+    const { data } = await supabase.from('blocks').select('*').eq('id', bId).single()
+    if (data) {
+      setIdentifier(data.identifier ?? '')
+      setDifficulty(data.difficulty ?? null)
+      setExistingPhotoUrl(data.photo_url ?? null)
+      setImageUri(data.photo_url ?? null)
+    }
+    setInitialLoading(false)
+  }
 
   // ─── Seleccionar imagen ───────────────────────────────────────────────────
   async function pickImage() {
@@ -60,14 +84,17 @@ export default function AddBlockScreen() {
   }
 
   async function takePhoto() {
-    if (Platform.OS === 'web') {
-      Alert.alert('No disponible en web', 'Usa la opción de galería en el navegador.')
-      return
-    }
-
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
     if (status !== 'granted') {
-      Alert.alert('Permiso denegado', 'Necesitamos acceso a tu cámara para hacer una foto.')
+      // Permiso denegado → ofrecer galería como alternativa
+      Alert.alert(
+        'Sin acceso a la cámara',
+        'No se concedió permiso. ¿Quieres seleccionar una foto de la galería?',
+        [
+          { text: 'Abrir galería', onPress: pickImage },
+          { text: 'Cancelar', style: 'cancel' },
+        ]
+      )
       return
     }
 
@@ -84,10 +111,20 @@ export default function AddBlockScreen() {
 
   function showImageOptions() {
     if (Platform.OS === 'web') {
+      // En web no hay cámara nativa → abrir galería directamente
       pickImage()
       return
     }
-    Alert.alert('Añadir foto', 'Elige una opción', [
+    // En móvil: abrir cámara directamente
+    takePhoto()
+  }
+
+  function changePhoto() {
+    if (Platform.OS === 'web') {
+      pickImage()
+      return
+    }
+    Alert.alert('Cambiar foto', 'Elige una opción', [
       { text: 'Cámara',   onPress: takePhoto },
       { text: 'Galería',  onPress: pickImage },
       { text: 'Cancelar', style: 'cancel' },
@@ -138,85 +175,130 @@ export default function AddBlockScreen() {
 
   // ─── Guardar bloque ───────────────────────────────────────────────────────
   async function handleSave() {
-    if (!identifier.trim()) {
-      Alert.alert('Campo obligatorio', 'Añade un identificador al bloque.')
-      return
-    }
-    if (!imageUri) {
-      Alert.alert('Foto obligatoria', 'Selecciona una foto para el bloque.')
-      return
-    }
+    const newErrors: { identifier?: string; image?: string; general?: string } = {}
+    if (!identifier.trim()) newErrors.identifier = 'El identificador es obligatorio'
+    if (!imageUri) newErrors.image = 'Selecciona una foto para el bloque'
+    setErrors(newErrors)
+    if (Object.keys(newErrors).length > 0) return
 
     setLoading(true)
+    setErrors({})
     try {
-      const photoUrl = await uploadImage(imageUri)
+      // Solo subir nueva foto si el usuario ha cambiado la imagen
+      let photoUrl = existingPhotoUrl ?? ''
+      if (imageUri !== existingPhotoUrl) {
+        setUploadProgress('Subiendo foto…')
+        photoUrl = await uploadImage(imageUri!)
+        // Borrar foto antigua de Storage si existía
+        if (existingPhotoUrl) {
+          const rawPath = existingPhotoUrl.split('/block-photos/')[1]
+          const oldPath = rawPath?.split('?')[0]
+          if (oldPath) await supabase.storage.from('block-photos').remove([oldPath])
+        }
+      }
 
-      const { error } = await supabase.from('blocks').insert({
-        league_id:  id,
-        identifier: identifier.trim(),
-        difficulty: difficulty ?? null,
-        photo_url:  photoUrl,
-      })
+      setUploadProgress('Guardando bloque…')
 
-      if (error) throw error
+      if (isEditing && blockId) {
+        const { error } = await supabase.from('blocks').update({
+          difficulty: difficulty ?? null,
+          photo_url:  photoUrl,
+        }).eq('id', blockId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('blocks').insert({
+          league_id:  id,
+          identifier: identifier.trim(),
+          difficulty: difficulty ?? null,
+          photo_url:  photoUrl,
+        })
+        if (error) throw error
+      }
 
-      // Navegar de vuelta al detalle de la liguilla
       router.replace(`/(app)/leagues/${id}`)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
-      Alert.alert('Error', `No se pudo guardar el bloque: ${message}`)
+      setErrors({ general: `No se pudo guardar el bloque: ${message}` })
     } finally {
       setLoading(false)
+      setUploadProgress(null)
     }
   }
 
   // ─── UI ──────────────────────────────────────────────────────────────────
+  if (initialLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.primary} size="large" />
+        </View>
+      </SafeAreaView>
+    )
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.replace(`/(app)/leagues/${id}`)}>
-            <Text style={styles.backText}>← Volver</Text>
+          <TouchableOpacity
+            onPress={() => router.replace(`/(app)/leagues/${id}`)}
+            style={styles.backButton}
+          >
+            <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Nuevo bloque</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>
+            {isEditing ? 'Editar bloque' : 'Nuevo bloque'}
+          </Text>
         </View>
 
         {/* Foto */}
-        <Text style={styles.label}>Foto *</Text>
-        <TouchableOpacity style={styles.photoArea} onPress={showImageOptions} activeOpacity={0.8}>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Foto *</Text>
+        <TouchableOpacity style={[styles.photoArea, { borderColor: errors.image ? colors.error : colors.border }]} onPress={showImageOptions} activeOpacity={0.8}>
           {imageUri ? (
             <Image source={{ uri: imageUri }} style={styles.photoPreview} resizeMode="cover" />
           ) : (
-            <View style={styles.photoPlaceholder}>
+            <View style={[styles.photoPlaceholder, { backgroundColor: colors.surface }]}>
               <Text style={styles.photoEmoji}>📸</Text>
-              <Text style={styles.photoHint}>Toca para añadir foto</Text>
+              <Text style={[styles.photoHint, { color: colors.textMuted }]}>Toca para añadir foto</Text>
             </View>
           )}
         </TouchableOpacity>
+        {errors.image && <Text style={[styles.errorText, { color: colors.error }]}>{errors.image}</Text>}
         {imageUri && (
-          <TouchableOpacity onPress={showImageOptions} style={styles.changePhoto}>
-            <Text style={styles.changePhotoText}>Cambiar foto</Text>
+          <TouchableOpacity onPress={changePhoto} style={styles.changePhoto}>
+            <Text style={[styles.changePhotoText, { color: colors.primary }]}>Cambiar foto</Text>
           </TouchableOpacity>
         )}
 
-        {/* Identificador */}
-        <Text style={[styles.label, { marginTop: spacing.md }]}>Identificador *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej: Amarillo sector A, Verde 3..."
-          placeholderTextColor={colors.textMuted}
-          value={identifier}
-          onChangeText={setIdentifier}
-          maxLength={60}
-        />
+        {/* Identificador — solo lectura en modo edición */}
+        <Text style={[styles.label, { color: colors.textSecondary, marginTop: spacing.md }]}>
+          Identificador {isEditing ? '' : '*'}
+        </Text>
+        {isEditing ? (
+          <View style={[styles.input, styles.inputReadonly, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+            <Text style={{ color: colors.textMuted, fontSize: typography.size.md }}>{identifier}</Text>
+          </View>
+        ) : (
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: errors.identifier ? colors.error : colors.border, color: colors.textPrimary }]}
+            placeholder="Ej: Amarillo sector A, Verde 3..."
+            placeholderTextColor={colors.textMuted}
+            value={identifier}
+            onChangeText={t => { setIdentifier(t); setErrors(e => ({ ...e, identifier: undefined })) }}
+            maxLength={60}
+          />
+        )}
+        {errors.identifier && <Text style={[styles.errorText, { color: colors.error }]}>{errors.identifier}</Text>}
 
         {/* Dificultad */}
-        <Text style={styles.label}>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
           Dificultad <Text style={styles.optional}>(opcional)</Text>
         </Text>
         <View style={styles.difficultyGrid}>
@@ -225,7 +307,8 @@ export default function AddBlockScreen() {
               key={d.value}
               style={[
                 styles.difficultyChip,
-                difficulty === d.value && styles.difficultyChipActive,
+                { borderColor: colors.border, backgroundColor: colors.surface },
+                difficulty === d.value && { backgroundColor: colors.primary, borderColor: colors.primary },
               ]}
               onPress={() => setDifficulty(prev => (prev === d.value ? null : d.value))}
               activeOpacity={0.8}
@@ -233,7 +316,7 @@ export default function AddBlockScreen() {
               <Text
                 style={[
                   styles.difficultyText,
-                  difficulty === d.value && styles.difficultyTextActive,
+                  { color: difficulty === d.value ? colors.textInverse : colors.textSecondary },
                 ]}
               >
                 {d.label}
@@ -242,9 +325,25 @@ export default function AddBlockScreen() {
           ))}
         </View>
 
+        {/* Error general */}
+        {errors.general && (
+          <View style={[styles.errorCard, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}>
+            <Icon name="alert-circle-outline" size={16} color={colors.error} />
+            <Text style={[styles.errorCardText, { color: colors.error }]}>{errors.general}</Text>
+          </View>
+        )}
+
+        {/* Mensaje de progreso */}
+        {uploadProgress && (
+          <View style={[styles.progressCard, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}>
+            <ActivityIndicator color={colors.primary} size="small" style={{ marginRight: spacing.sm }} />
+            <Text style={[styles.progressText, { color: colors.primary }]}>{uploadProgress}</Text>
+          </View>
+        )}
+
         {/* Botón guardar */}
         <TouchableOpacity
-          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+          style={[styles.saveButton, { backgroundColor: colors.primary }, loading && styles.saveButtonDisabled]}
           onPress={handleSave}
           disabled={loading}
           activeOpacity={0.8}
@@ -252,7 +351,7 @@ export default function AddBlockScreen() {
           {loading ? (
             <ActivityIndicator color={colors.textInverse} />
           ) : (
-            <Text style={styles.saveButtonText}>Guardar bloque</Text>
+            <Text style={[styles.saveButtonText, { color: colors.textInverse }]}>Guardar bloque</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -261,30 +360,34 @@ export default function AddBlockScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:            { flex: 1, backgroundColor: colors.background },
+  container:            { flex: 1 },
+  scroll:               { flex: 1 },
   content:              { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
   header:               { paddingTop: spacing.xl, marginBottom: spacing.lg },
-  backText:             { color: colors.textSecondary, fontSize: typography.size.md, marginBottom: spacing.md },
-  title:                { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, color: colors.textPrimary },
-  label:                { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.textSecondary, marginBottom: spacing.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
+  backButton:           { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.md },
+  backText:             { fontSize: typography.size.md },
+  title:                { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
+  label:                { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, marginBottom: spacing.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
   optional:             { fontWeight: typography.weight.regular, textTransform: 'none', letterSpacing: 0 },
-  input:                { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: typography.size.md, color: colors.textPrimary, marginBottom: spacing.lg },
-  photoArea:            { borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.xs, borderWidth: 1, borderColor: colors.border, height: 200 },
+  input:                { borderRadius: radius.md, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: typography.size.md, marginBottom: spacing.xs },
+  errorText:            { fontSize: typography.size.sm, marginBottom: spacing.sm },
+  errorCard:            { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, padding: spacing.md, borderWidth: 1, marginBottom: spacing.sm },
+  errorCardText:        { fontSize: typography.size.sm, fontWeight: typography.weight.medium, flex: 1 },
+  progressCard:         { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, padding: spacing.md, borderWidth: 1, marginBottom: spacing.sm },
+  progressText:         { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  photoArea:            { borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.xs, borderWidth: 1, height: 200 },
   photoPreview:         { width: '100%', height: '100%' },
-  photoPlaceholder:     { flex: 1, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  photoPlaceholder:     { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   photoEmoji:           { fontSize: 36 },
-  photoHint:            { fontSize: typography.size.sm, color: colors.textMuted },
+  photoHint:            { fontSize: typography.size.sm },
   changePhoto:          { alignItems: 'center', marginBottom: spacing.lg },
-  changePhotoText:      { fontSize: typography.size.sm, color: colors.primary, fontWeight: typography.weight.medium },
+  changePhotoText:      { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   difficultyGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl },
-  difficultyChip:       { borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, backgroundColor: colors.surface },
-  difficultyChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  difficultyText:       { fontSize: typography.size.sm, color: colors.textSecondary, fontWeight: typography.weight.medium },
-  difficultyTextActive: { color: colors.textInverse },
-  saveButton:           { backgroundColor: colors.primary, borderRadius: radius.lg, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.sm },
+  difficultyChip:       { borderRadius: radius.full, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  difficultyText:       { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  saveButton:           { borderRadius: radius.lg, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.sm },
   saveButtonDisabled:   { opacity: 0.6 },
-  saveButtonText:       { color: colors.textInverse, fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  saveButtonText:       { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  inputReadonly:        { paddingVertical: spacing.sm, justifyContent: 'center' },
+  centered:             { flex: 1, alignItems: 'center', justifyContent: 'center' },
 })
-
-
-
