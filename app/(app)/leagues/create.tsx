@@ -51,11 +51,15 @@ export default function CreateLeagueScreen() {
   function validate() {
     const e: Record<string, string> = {}
     if (!name.trim()) e.name = 'El nombre es obligatorio'
-    if (isPrivate && !accessCode.trim()) e.accessCode = 'El código de acceso es obligatorio'
+    if (isPrivate && accessCode.trim().length < 4) e.accessCode = 'El código debe tener al menos 4 caracteres'
     if (maxParticipants && Number.isNaN(Number(maxParticipants))) e.maxParticipants = 'Debe ser un número'
     setErrors(e)
     return Object.keys(e).length === 0
   }
+
+  const isCreateDisabled = loading
+    || !name.trim()
+    || (isPrivate && accessCode.trim().length < 4)
 
   async function handleCreate() {
     if (!validate()) return
@@ -170,14 +174,20 @@ export default function CreateLeagueScreen() {
           </View>
 
           {isPrivate && (
-            <Field label="Código de acceso" error={errors.accessCode} colors={colors}>
+            <Field
+              label="Código de acceso"
+              hint={accessCode.trim().length < 4 ? `Mín. 4 caracteres (${accessCode.trim().length}/4)` : undefined}
+              error={errors.accessCode}
+              colors={colors}
+            >
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.accessCode ? colors.error : colors.border }]}
                 placeholder="Ej: ESCALA24"
                 placeholderTextColor={colors.textMuted}
                 value={accessCode}
-                onChangeText={t => setAccessCode(t.toUpperCase())}
+                onChangeText={t => { setAccessCode(t.toUpperCase()); setErrors(e => ({ ...e, accessCode: undefined })) }}
                 autoCapitalize="characters"
+                maxLength={20}
               />
             </Field>
           )}
@@ -191,8 +201,14 @@ export default function CreateLeagueScreen() {
         )}
 
         <TouchableOpacity
-          style={[styles.buttonPrimary, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
-          onPress={handleCreate} activeOpacity={0.8} disabled={loading}
+          style={[
+            styles.buttonPrimary,
+            { backgroundColor: colors.primary },
+            isCreateDisabled && styles.buttonDisabled,
+          ]}
+          onPress={handleCreate}
+          activeOpacity={isCreateDisabled ? 1 : 0.8}
+          disabled={isCreateDisabled}
         >
           {loading
             ? <ActivityIndicator color={colors.textInverse} />

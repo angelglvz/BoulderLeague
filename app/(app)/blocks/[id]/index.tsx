@@ -38,6 +38,7 @@ export default function BlockDetailScreen() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>('not_started')
+  const [isCreator, setIsCreator] = useState(false)
 
   useEffect(() => {
     if (id) fetchBlock()
@@ -81,10 +82,10 @@ export default function BlockDetailScreen() {
       setBlock(blockData)
       await fetchAttempt()
 
-      // Estado de la liga
+      // Estado de la liga + comprobar si es creador
       const { data: leagueData } = await supabase
         .from('leagues')
-        .select('start_date, end_date')
+        .select('start_date, end_date, creator_id')
         .eq('id', blockData.league_id)
         .single()
 
@@ -99,6 +100,10 @@ export default function BlockDetailScreen() {
         } else {
           setLeagueStatus('in_progress')
         }
+
+        const { data: sessionData } = await supabase.auth.getSession()
+        const uid = sessionData.session?.user?.id
+        setIsCreator(!!uid && uid === leagueData.creator_id)
       }
     }
     setLoading(false)
@@ -135,21 +140,32 @@ export default function BlockDetailScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <Image
-          source={{ uri: block.photo_url }}
-          style={styles.photo}
-          resizeMode="cover"
-        />
+        {isCreator && leagueStatus === 'not_started' ? (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.replace(`/(app)/leagues/${block.league_id}/add-block?blockId=${block.id}`)}
+          >
+            <Image source={{ uri: block.photo_url }} style={styles.photo} resizeMode="cover" />
+            <View style={styles.editBadge}>
+              <Icon name="create-outline" size={14} color="#fff" />
+              <Text style={styles.editBadgeText}>Toca para editar</Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <Image source={{ uri: block.photo_url }} style={styles.photo} resizeMode="cover" />
+        )}
 
         <View style={styles.content}>
           <TouchableOpacity
             onPress={() => router.replace(`/(app)/leagues/${block.league_id}`)}
             style={styles.backButton}
           >
-            <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
+            <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
 
           <Text style={[styles.identifier, { color: colors.textPrimary }]}>{block.identifier}</Text>
+
 
           {block.difficulty && (
             <View style={[styles.difficultyBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -230,8 +246,10 @@ const styles = StyleSheet.create({
   container:          { flex: 1 },
   centered:           { flex: 1, alignItems: 'center', justifyContent: 'center' },
   photo:              { width: '100%', height: 300 },
+  editBadge:          { position: 'absolute', bottom: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 4 },
+  editBadgeText:      { color: '#fff', fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   content:            { padding: spacing.lg, gap: spacing.md },
-  backButton:         { marginBottom: spacing.xs },
+  backButton:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.xs },
   backText:           { fontSize: typography.size.md },
   identifier:         { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
   difficultyBadge:    { alignSelf: 'flex-start', borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderWidth: 1 },

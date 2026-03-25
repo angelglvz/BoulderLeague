@@ -137,6 +137,7 @@ export default function LeagueDetailScreen() {
   const [participantCount, setParticipantCount] = useState(0)
   const [userAttempts, setUserAttempts] = useState<Record<string, Attempt>>({})
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const blockIdsRef = useRef<string[]>([])
 
   const [showStartModal, setShowStartModal] = useState(false)
@@ -145,6 +146,9 @@ export default function LeagueDetailScreen() {
   const [dateErrors, setDateErrors] = useState<{ start?: string; end?: string }>({})
   const [savingDates, setSavingDates] = useState(false)
   const [pickerTarget, setPickerTarget] = useState<'start' | 'end' | null>(null)
+
+  const [blockToDelete, setBlockToDelete] = useState<Block | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => { if (id) fetchData() }, [id])
 
@@ -171,11 +175,17 @@ export default function LeagueDetailScreen() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: leagueData }, { data: blocksData, error: blocksError }, { count }] = await Promise.all([
+    setLoadError(null)
+    const [{ data: leagueData, error: leagueError }, { data: blocksData, error: blocksError }, { count }] = await Promise.all([
       supabase.from('leagues').select('*').eq('id', id).single(),
       supabase.from('blocks').select('*').eq('league_id', id).order('created_at'),
       supabase.from('league_participants').select('*', { count: 'exact', head: true }).eq('league_id', id),
     ])
+    if (leagueError && !leagueData) {
+      setLoadError('No se pudo cargar la liguilla. Comprueba tu conexión.')
+      setLoading(false)
+      return
+    }
     if (leagueData) setLeague(leagueData)
     if (blocksError) console.error('Error cargando bloques:', blocksError)
     const safeBlocks = blocksData ?? []
@@ -244,27 +254,27 @@ export default function LeagueDetailScreen() {
 
   // ── Borrar bloque ────────────────────────────────────────────────────────
   function handleDeleteBlock(block: Block) {
-    Alert.alert(
-      '⚠️ Borrar bloque',
-      `Se eliminarán la foto y todos los resultados de "${block.identifier}". Esta acción no se puede deshacer.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Borrar definitivamente',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const path = block.photo_url?.split('/block-photos/')[1]
-              if (path) await supabase.storage.from('block-photos').remove([path])
-            } catch (_e) { /* continuar aunque falle el borrado de foto */ }
+    setBlockToDelete(block)
+  }
 
-            const { error } = await supabase.from('blocks').delete().eq('id', block.id)
-            if (error) { Alert.alert('Error', 'No se pudo borrar el bloque'); return }
-            setBlocks(prev => prev.filter(b => b.id !== block.id))
-          },
-        },
-      ]
-    )
+  async function confirmDeleteBlock() {
+    if (!blockToDelete) return
+    setDeleting(true)
+    try {
+      const rawPath = blockToDelete.photo_url?.split('/block-photos/')[1]
+      const path = rawPath?.split('?')[0]
+      if (path) await supabase.storage.from('block-photos').remove([path])
+    } catch (_e) { /* continuar aunque falle el borrado de foto */ }
+
+    const { error } = await supabase.from('blocks').delete().eq('id', blockToDelete.id)
+    setDeleting(false)
+    if (error) {
+      setBlockToDelete(null)
+      Alert.alert('Error al borrar', `${error.message}`)
+      return
+    }
+    setBlocks(prev => prev.filter(b => b.id !== blockToDelete.id))
+    setBlockToDelete(null)
   }
 
   // ── Mover bloque con flechas ─────────────────────────────────────────────
@@ -298,7 +308,20 @@ export default function LeagueDetailScreen() {
   if (!league) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.errorText, { color: colors.error }]}>Liguilla no encontrada</Text>
+        <Icon name="alert-circle-outline" size={48} color={colors.error} />
+        <Text style={[styles.errorText, { color: colors.error, marginTop: spacing.md, textAlign: 'center' }]}>
+          {loadError ?? 'Liguilla no encontrada'}
+        </Text>
+        {loadError && (
+          <TouchableOpacity
+            style={[styles.retryButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            onPress={() => fetchData()}
+            activeOpacity={0.8}
+          >
+            <Icon name="refresh-outline" size={16} color={colors.primary} style={{ marginRight: 4 }} />
+            <Text style={[styles.retryText, { color: colors.primary }]}>Reintentar</Text>
+          </TouchableOpacity>
+        )}
       </View>
     )
   }
@@ -457,7 +480,11 @@ export default function LeagueDetailScreen() {
                 <BlockCard
                   block={block}
                   attempt={userAttempts[block.id] ?? null}
-                  onPress={() => router.push(`/(app)/blocks/${block.id}`)}
+                  onPress={() =>
+                    isCreator && !isInProgress
+                      ? router.push(`/(app)/leagues/${league.id}/add-block?blockId=${block.id}`)
+                      : router.push(`/(app)/blocks/${block.id}`)
+                  }
                 />
               </View>
 
@@ -470,6 +497,41 @@ export default function LeagueDetailScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* ── Modal confirmar borrado de bloque ─────────────────────────────── */}
+      <Modal visible={!!blockToDelete} transparent animationType="fade" onRequestClose={() => setBlockToDelete(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.background }]}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>⚠️ Borrar bloque</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
+              Se eliminarán la foto y todos los resultados de{' '}
+              <Text style={{ fontWeight: typography.weight.bold, color: colors.textPrimary }}>
+                {blockToDelete?.identifier}
+              </Text>
+              .{'\n'}Esta acción no se puede deshacer.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                onPress={() => setBlockToDelete(null)}
+                disabled={deleting}
+              >
+                <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: colors.error }, deleting && styles.btnDisabled]}
+                onPress={confirmDeleteBlock}
+                disabled={deleting}
+              >
+                {deleting
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={[styles.confirmText, { color: '#fff' }]}>Borrar</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Modal iniciar liguilla ─────────────────────────────────────────── */}
       <Modal visible={showStartModal} transparent animationType="fade" onRequestClose={() => setShowStartModal(false)}>
@@ -585,6 +647,8 @@ const styles = StyleSheet.create({
   emptyText:               { fontSize: typography.size.md, fontWeight: typography.weight.medium },
   emptySubtext:            { fontSize: typography.size.sm },
   errorText:               { fontSize: typography.size.md },
+  retryButton:             { flexDirection: 'row', alignItems: 'center', marginTop: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl, borderRadius: radius.lg, borderWidth: 1 },
+  retryText:               { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
   // Modal styles
   modalOverlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
   modalCard:      { borderRadius: radius.xl, padding: spacing.lg, width: '100%', maxWidth: 420, gap: spacing.sm },

@@ -2,6 +2,7 @@ import 'react-native-reanimated'
 import { useEffect } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useSession } from '../hooks';
 import { ThemeProvider, useTheme } from '../lib/ThemeContext';
 
@@ -34,9 +35,11 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <RootLayoutNav />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RootLayoutNav />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

@@ -9,6 +9,7 @@ import { useSession } from '../../../../hooks'
 import { supabase } from '../../../../lib/supabase'
 import { typography, spacing, radius } from '../../../../constants'
 import { useTheme } from '../../../../lib/ThemeContext'
+import { Icon } from '../../../../components'
 import type { League } from '../../../../types'
 
 // ── Tipos locales ─────────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ export default function RankingScreen() {
   const [league, setLeague] = useState<League | null>(null)
   const [ranking, setRanking] = useState<RankingEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // ── Calcular si el usuario puede ver el ranking ──────────────────────────
   function canViewRanking(l: League): boolean {
@@ -150,11 +152,18 @@ export default function RankingScreen() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const { data: leagueData } = await supabase
+    setLoadError(null)
+    const { data: leagueData, error: leagueError } = await supabase
       .from('leagues')
       .select('*')
       .eq('id', id)
       .single()
+
+    if (leagueError) {
+      setLoadError('No se pudo cargar el ranking. Comprueba tu conexión.')
+      setLoading(false)
+      return
+    }
 
     if (leagueData) {
       setLeague(leagueData)
@@ -195,9 +204,24 @@ export default function RankingScreen() {
 
   if (!league) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.errorText, { color: colors.error }]}>Liguilla no encontrada</Text>
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.centered}>
+          <Icon name="alert-circle-outline" size={48} color={colors.error} />
+          <Text style={[styles.errorText, { color: colors.error, marginTop: spacing.md, textAlign: 'center' }]}>
+            {loadError ?? 'Liguilla no encontrada'}
+          </Text>
+          {loadError && (
+            <TouchableOpacity
+              style={[styles.retryButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={loadData}
+              activeOpacity={0.8}
+            >
+              <Icon name="refresh-outline" size={16} color={colors.primary} style={{ marginRight: 4 }} />
+              <Text style={[styles.retryText, { color: colors.primary }]}>Reintentar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
     )
   }
 
@@ -205,8 +229,9 @@ export default function RankingScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.replace(`/(app)/leagues/${id}`)}>
-            <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
+          <TouchableOpacity onPress={() => router.replace(`/(app)/leagues/${id}`)} style={styles.backButton}>
+            <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.locked}>
@@ -237,10 +262,11 @@ export default function RankingScreen() {
         keyExtractor={item => item.userId}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View>
+            <View>
             <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.replace(`/(app)/leagues/${id}`)}>
-                <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
+              <TouchableOpacity onPress={() => router.replace(`/(app)/leagues/${id}`)} style={styles.backButton}>
+                <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+                <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
               </TouchableOpacity>
               <Text style={[styles.title, { color: colors.textPrimary }]}>🏆 Ranking</Text>
               <Text style={[styles.leagueName, { color: colors.textMuted }]}>{league.name}</Text>
@@ -311,7 +337,8 @@ const styles = StyleSheet.create({
   centered:           { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content:            { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
   header:             { paddingTop: spacing.xl, marginBottom: spacing.lg },
-  backText:           { fontSize: typography.size.md, marginBottom: spacing.md },
+  backButton:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.md },
+  backText:           { fontSize: typography.size.md },
   title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
   leagueName:         { fontSize: typography.size.md, marginTop: spacing.xs },
   finishedBadge:      { marginTop: spacing.sm, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignSelf: 'flex-start', borderWidth: 1 },
@@ -336,5 +363,7 @@ const styles = StyleSheet.create({
   lockedSubtitle:     { fontSize: typography.size.md, textAlign: 'center', lineHeight: 22 },
   lockedDate:         { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textAlign: 'center' },
   errorText:          { fontSize: typography.size.md },
+  retryButton:        { flexDirection: 'row', alignItems: 'center', marginTop: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl, borderRadius: radius.lg, borderWidth: 1 },
+  retryText:          { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
 })
 

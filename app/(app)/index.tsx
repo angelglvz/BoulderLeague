@@ -15,6 +15,7 @@ export default function HomeScreen() {
   const { colors, toggleTheme, isDark } = useTheme()
   const [leagues, setLeagues] = useState<League[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
@@ -24,12 +25,15 @@ export default function HomeScreen() {
 
   async function fetchLeagues() {
     setLoading(true)
+    setLoadError(null)
     const { data, error } = await supabase
       .from('league_participants')
       .select('league_id, leagues(*)')
       .eq('user_id', user!.id)
 
-    if (!error && data) {
+    if (error) {
+      setLoadError('No se pudieron cargar las liguillas. Comprueba tu conexión.')
+    } else if (data) {
       const leagueList = data
         .map((item: any) => item.leagues)
         .filter(Boolean) as League[]
@@ -89,6 +93,19 @@ export default function HomeScreen() {
 
       {loading ? (
         <ActivityIndicator color={colors.primary} style={styles.loader} />
+      ) : loadError ? (
+        <View style={styles.empty}>
+          <Icon name="wifi-outline" size={48} color={colors.textMuted} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{loadError}</Text>
+          <TouchableOpacity
+            style={[styles.retryButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            onPress={fetchLeagues}
+            activeOpacity={0.8}
+          >
+            <Icon name="refresh-outline" size={16} color={colors.primary} style={{ marginRight: 4 }} />
+            <Text style={[styles.retryButtonText, { color: colors.primary }]}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
       ) : leagues.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyEmoji}>🏔️</Text>
@@ -280,6 +297,19 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: typography.size.sm,
     textAlign: 'center',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  },
+  retryButtonText: {
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.semibold,
   },
   list: {
     gap: spacing.sm,

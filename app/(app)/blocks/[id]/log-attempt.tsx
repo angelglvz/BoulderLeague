@@ -13,6 +13,7 @@ import { supabase } from '../../../../lib/supabase'
 import { calcScore, GOES_LABELS, goesFromDB, type Goes } from '../../../../lib/scoring'
 import { typography, spacing, radius } from '../../../../constants'
 import { useTheme } from '../../../../lib/ThemeContext'
+import { Icon } from '../../../../components'
 import type { Block, Attempt } from '../../../../types'
 
 const GOES_OPTIONS: Goes[] = [0, 1, 2, 3, 4, 5, 6]
@@ -30,6 +31,7 @@ export default function LogAttemptScreen() {
   const [selectedGoes, setSelectedGoes] = useState<Goes>(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>('not_started')
 
@@ -101,6 +103,7 @@ export default function LogAttemptScreen() {
 
     const score = calcScore(selectedGoes, block.difficulty)
     setSaving(true)
+    setSaveError(null)
 
     try {
       const { error } = await supabase
@@ -115,8 +118,8 @@ export default function LogAttemptScreen() {
       if (error) throw error
       router.replace(`/(app)/blocks/${block.id}`)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Error al guardar'
-      alert('❌ ' + msg)
+      const msg = e instanceof Error ? e.message : 'Error al guardar el resultado'
+      setSaveError(msg)
     } finally {
       setSaving(false)
     }
@@ -143,7 +146,8 @@ export default function LogAttemptScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.blockedScreen}>
           <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
-            <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
+            <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
           <View style={styles.blockedCard}>
             <Text style={styles.blockedEmoji}>⏳</Text>
@@ -162,7 +166,8 @@ export default function LogAttemptScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.blockedScreen}>
           <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
-            <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
+            <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
           <View style={styles.blockedCard}>
             <Text style={styles.blockedEmoji}>🏁</Text>
@@ -180,10 +185,11 @@ export default function LogAttemptScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
-          <Text style={[styles.backText, { color: colors.textSecondary }]}>← Volver</Text>
+          <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
+          <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
         </TouchableOpacity>
 
-        <Text style={[styles.title, { color: colors.textPrimary }]}>✍️ Registrar resultado</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Registrar resultado</Text>
         <Text style={[styles.blockName, { color: colors.textSecondary }]}>{block.identifier}</Text>
 
         {existingAttempt ? (
@@ -228,7 +234,7 @@ export default function LogAttemptScreen() {
                       { borderColor: colors.border, backgroundColor: colors.surface },
                       isSelected && { borderColor: colors.primary, backgroundColor: colors.primary + '20' },
                     ]}
-                    onPress={() => setSelectedGoes(g)}
+                    onPress={() => { setSelectedGoes(g); setSaveError(null) }}
                     activeOpacity={0.7}
                   >
                     <Text style={[
@@ -242,6 +248,13 @@ export default function LogAttemptScreen() {
                 )
               })}
             </View>
+
+            {saveError && (
+              <View style={[styles.errorCard, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}>
+                <Icon name="alert-circle-outline" size={16} color={colors.error} />
+                <Text style={[styles.errorCardText, { color: colors.error }]}>{saveError}</Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.saveButton, { backgroundColor: colors.primary }, saving && styles.saveButtonDisabled]}
@@ -266,7 +279,7 @@ const styles = StyleSheet.create({
   container:          { flex: 1 },
   centered:           { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll:             { padding: spacing.lg, gap: spacing.lg },
-  backButton:         { marginBottom: spacing.xs },
+  backButton:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.xs },
   backText:           { fontSize: typography.size.md },
   title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
   blockName:          { fontSize: typography.size.lg, marginTop: -spacing.sm },
@@ -287,6 +300,8 @@ const styles = StyleSheet.create({
   saveButtonDisabled: { opacity: 0.6 },
   saveButtonText:     { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   errorText:          { fontSize: typography.size.md },
+  errorCard:          { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radius.md, padding: spacing.md, borderWidth: 1 },
+  errorCardText:      { fontSize: typography.size.sm, flex: 1 },
   blockedScreen:      { flex: 1, padding: spacing.lg },
   blockedCard:        { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
   blockedEmoji:       { fontSize: 64 },

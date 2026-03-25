@@ -7,7 +7,7 @@
 
 ## 📍 Punto de partida para el siguiente agente
 
-> **Estado:** Fase 7 en progreso · **Rama:** `feature/fase-7` · **Siguiente:** Continuar con **7.4** (estados vacíos) y luego 7.5–7.6
+> **Estado:** Fase 7 completada · **Rama:** `feature/fase-7` · **Siguiente:** Fase 8 (Build y distribución)
 
 ---
 
@@ -401,9 +401,9 @@ npm run types:gen
   - ✅ Crear liguilla (`leagues/create.tsx`): ActivityIndicator en botón + tarjeta de error inline (reemplaza toast de error)
   - ✅ Unirse a liguilla (`leagues/join.tsx`): ActivityIndicator en botón, error inline, navegación directa (sin Alert)
   - ✅ Añadir bloque (`leagues/[id]/add-block.tsx`): errores inline por campo (foto/identificador), tarjeta de error general, mensaje de progreso "Subiendo foto…" / "Guardando bloque…"
-- [ ] 7.4 Añadir estados **vacíos** cuando no hay liguillas, bloques o participantes
-- [ ] 7.5 Añadir manejo de **errores** con mensajes claros al usuario (toast o inline)
-- [ ] 7.6 Revisar flujo completo de extremo a extremo
+- [x] 7.4 Añadir estados **vacíos** cuando no hay liguillas, bloques o participantes
+- [x] 7.5 Añadir manejo de **errores** con mensajes claros al usuario (toast o inline)
+- [x] 7.6 Revisar flujo completo de extremo a extremo
 
 - [x] 7.7 **Selector de tema oscuro / claro + migración global a `useTheme()`**
   - `lib/ThemeContext.tsx` con `ThemeProvider` y `useTheme()` hook
