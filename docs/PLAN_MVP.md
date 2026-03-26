@@ -73,6 +73,16 @@ Y añadir `'react-native-reanimated/plugin'` en `babel.config.js` + `import 'rea
 - `useNativeDriver not supported` — ya está corregido con `Platform.OS !== 'web'`
 - `Unexpected text node: // @ts-ignore` — viene del `DateField` en `create.tsx` y `leagues/[id].tsx`, ignorar en web
 
+### Cambios de UX en registro (aplicados)
+- **`welcome.tsx`** — Eliminados los botones de selección de tipo de cuenta. El botón "Crear cuenta" lleva directamente a `/register`.
+- **`register.tsx`** — El formulario tiene ahora dos **tabs** en la parte superior: `🧗 Escalador` / `🏢 Rocódromo`. La selección de tipo es interna al formulario.
+  - **Escalador:** campo `Nombre` + campo `Alias / Nick` (obligatorio, snake_case sugerido).
+  - **Rocódromo:** campo `Nombre del rocódromo` + selector `País` (modal con buscador, lista de ~36 países) + campo `Ciudad`.
+- Los datos extra se envían en `options.data` de `signUp` y los recoge el trigger `handle_new_user`.
+
+### ⚠️ PENDIENTE — restricción de navegación por tipo de cuenta
+Las cuentas de tipo `gym` **NO deben ver** las secciones de "Buscar rocódromo" ni "Rocódromos favoritos". Esas secciones son **exclusivas de escaladores**. Cuando se implemente la navegación del home para gym, filtrar las opciones según `profile.account_type`.
+
 ### Patrones establecidos en el proyecto
 - **Date picker multiplataforma:** en web usar `<input type="date">` nativo; en móvil usar `DateTimePickerModal`
 - **Toast de confirmación:** hook `useToast` con `Animated` (ver `create.tsx`)

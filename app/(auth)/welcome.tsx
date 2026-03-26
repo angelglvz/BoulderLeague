@@ -34,7 +34,6 @@ export default function WelcomeScreen() {
         </Text>
       </View>
 
-
       {/* Acciones */}
       <View style={styles.actions}>
         <TouchableOpacity
@@ -57,7 +56,6 @@ export default function WelcomeScreen() {
   )
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -67,7 +65,7 @@ const styles = StyleSheet.create({
   },
   hero: {
     alignItems: 'center',
-    marginBottom: spacing['2xl'],
+    marginBottom: spacing.xl * 2,
     gap: spacing.lg,
   },
   logo: {
