@@ -69,7 +69,7 @@ export default function GymBlocksScreen() {
       setAvgRatings(ratings)
     }
     setLoading(false)
-  }, [user, statusFilter])
+  }, [user?.id, statusFilter])
 
   useFocusEffect(useCallback(() => { fetchBlocks() }, [fetchBlocks]))
 

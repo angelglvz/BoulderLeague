@@ -69,7 +69,7 @@ export default function HomeScreen() {
       setLeagues(all.filter(l => !l.end_date || new Date(l.end_date) >= new Date(sevenDaysAgo)))
     }
     setLoading(false)
-  }, [user])
+  }, [user?.id])
 
   // ── Fetch favoritos ──
   const fetchFavorites = useCallback(async () => {
@@ -102,7 +102,7 @@ export default function HomeScreen() {
       .eq('id', user.id)
       .single()
     if (profileData) setAchievementPoints((profileData as any).achievement_points ?? 0)
-  }, [user])
+  }, [user?.id])
 
   useFocusEffect(useCallback(() => {
     fetchLeagues()

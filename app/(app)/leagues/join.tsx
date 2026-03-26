@@ -5,7 +5,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useSession } from '../../../hooks'
+import { useSession, useProfile } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
 import { typography, spacing, radius } from '../../../constants'
 import { useTheme } from '../../../lib/ThemeContext'
@@ -14,6 +14,7 @@ import { Icon } from '../../../components'
 export default function JoinLeagueScreen() {
   const router = useRouter()
   const { user } = useSession()
+  const { isGym } = useProfile()
   const { colors } = useTheme()
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
@@ -94,32 +95,48 @@ export default function JoinLeagueScreen() {
             <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Unirse a liguilla</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Introduce el código que te han compartido</Text>
+          {!isGym && (
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Introduce el código que te han compartido</Text>
+          )}
         </View>
 
-        <View style={styles.form}>
-          <TextInput
-            style={[styles.codeInput, { backgroundColor: colors.surfaceAlt, color: colors.primary, borderColor: error ? colors.error : colors.border }]}
-            placeholder="ESCALA24"
-            placeholderTextColor={colors.textMuted}
-            value={code}
-            onChangeText={t => { setCode(t.toUpperCase()); setError('') }}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            maxLength={20}
-          />
-          {error ? <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text> : null}
-        </View>
+        {isGym ? (
+          /* ── Cuenta GYM: no puede participar ── */
+          <View style={styles.gymBlock}>
+            <Icon name="business-outline" size={48} color={colors.textMuted} />
+            <Text style={[styles.gymBlockTitle, { color: colors.textPrimary }]}>No disponible</Text>
+            <Text style={[styles.gymBlockText, { color: colors.textSecondary }]}>
+              Los rocódromos no pueden participar en liguillas.
+            </Text>
+          </View>
+        ) : (
+          /* ── Formulario normal para usuarios ── */
+          <>
+            <View style={styles.form}>
+              <TextInput
+                style={[styles.codeInput, { backgroundColor: colors.surfaceAlt, color: colors.primary, borderColor: error ? colors.error : colors.border }]}
+                placeholder="ESCALA24"
+                placeholderTextColor={colors.textMuted}
+                value={code}
+                onChangeText={t => { setCode(t.toUpperCase()); setError('') }}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={20}
+              />
+              {error ? <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text> : null}
+            </View>
 
-        <TouchableOpacity
-          style={[styles.buttonPrimary, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
-          onPress={handleJoin} activeOpacity={0.8} disabled={loading}
-        >
-          {loading
-            ? <ActivityIndicator color={colors.textInverse} />
-            : <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Unirse</Text>
-          }
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.buttonPrimary, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
+              onPress={handleJoin} activeOpacity={0.8} disabled={loading}
+            >
+              {loading
+                ? <ActivityIndicator color={colors.textInverse} />
+                : <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Unirse</Text>
+              }
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </SafeAreaView>
   )
@@ -145,4 +162,8 @@ const styles = StyleSheet.create({
   buttonPrimary:     { borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center' },
   buttonDisabled:    { opacity: 0.6 },
   buttonPrimaryText: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
+  // Estado bloqueado para GYM
+  gymBlock:          { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingHorizontal: spacing.xl },
+  gymBlockTitle:     { fontSize: typography.size.xl, fontWeight: typography.weight.bold, textAlign: 'center' },
+  gymBlockText:      { fontSize: typography.size.md, textAlign: 'center', lineHeight: 22 },
 })

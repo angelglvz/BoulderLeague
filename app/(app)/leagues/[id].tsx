@@ -1,17 +1,17 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, Modal, Platform, ScrollView, Clipboard,
+  ActivityIndicator, Alert, Modal, Platform, ScrollView, Clipboard, Share,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import DateTimePickerModal from 'react-native-modal-datetime-picker'
-import { useSession } from '../../../hooks'
+import { useSession, useProfile } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
 import { fetchBlockAvgRatings } from '../../../lib/ratings'
 import { typography, spacing, radius } from '../../../constants'
 import { useTheme } from '../../../lib/ThemeContext'
-import { BlockCard, Icon } from '../../../components'
+import { BlockCard, Icon, LeagueQRModal } from '../../../components'
 import type { League, Block, Attempt } from '../../../types'
 
 // ── Helpers de fecha ─────────────────────────────────────────────────────────
@@ -154,10 +154,12 @@ export default function LeagueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { user } = useSession()
+  useProfile() // carga el perfil; isGymLeague se detecta desde el creador de la liguilla
   const { colors, isDark } = useTheme()
 
   const [league, setLeague] = useState<League | null>(null)
   const [blocks, setBlocks] = useState<Block[]>([])
+  const [isGymLeague, setIsGymLeague] = useState(false)
   const [participantCount, setParticipantCount] = useState(0)
   const [userAttempts, setUserAttempts] = useState<Record<string, Attempt>>({})
   const [avgRatings, setAvgRatings] = useState<Record<string, number>>({})
@@ -174,6 +176,9 @@ export default function LeagueDetailScreen() {
 
   const [blockToDelete, setBlockToDelete] = useState<Block | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [removingBlockId, setRemovingBlockId] = useState<string | null>(null)
+  const [showQR, setShowQR] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   useEffect(() => { if (id) fetchData() }, [id])
 
@@ -201,19 +206,65 @@ export default function LeagueDetailScreen() {
   async function fetchData() {
     setLoading(true)
     setLoadError(null)
-    const [{ data: leagueData, error: leagueError }, { data: blocksData, error: blocksError }, { count }] = await Promise.all([
+
+    // 1. Cargar liguilla y recuento de participantes
+    const [{ data: leagueData, error: leagueError }, { count }] = await Promise.all([
       supabase.from('leagues').select('*').eq('id', id).single(),
-      supabase.from('blocks').select('*').eq('league_id', id).order('created_at'),
       supabase.from('league_participants').select('*', { count: 'exact', head: true }).eq('league_id', id),
     ])
+
     if (leagueError && !leagueData) {
       setLoadError('No se pudo cargar la liguilla. Comprueba tu conexión.')
       setLoading(false)
       return
     }
     if (leagueData) setLeague(leagueData)
-    if (blocksError) console.error('Error cargando bloques:', blocksError)
-    const safeBlocks = blocksData ?? []
+    if (count !== null) setParticipantCount(count)
+
+    // 2. Detectar si la liguilla es de GYM consultando el perfil del creador
+    let gymLeague = false
+    if (leagueData?.creator_id) {
+      const { data: creatorProfile } = await supabase
+        .from('profiles')
+        .select('account_type')
+        .eq('id', leagueData.creator_id)
+        .single()
+      gymLeague = creatorProfile?.account_type === 'gym'
+      setIsGymLeague(gymLeague)
+    }
+
+    // 3. Cargar bloques según el tipo de liguilla
+    let safeBlocks: Block[] = []
+    if (gymLeague) {
+      // Liguilla de GYM: obtener IDs de league_blocks ordenados por fecha de vinculación DESC
+      // (el bloque añadido más recientemente aparece primero)
+      const { data: lbData } = await supabase
+        .from('league_blocks')
+        .select('block_id')
+        .eq('league_id', id)
+        .order('created_at', { ascending: false })
+
+      const linkedIds = (lbData ?? []).map((lb: any) => lb.block_id).filter(Boolean) as string[]
+
+      if (linkedIds.length > 0) {
+        const { data: blocksData } = await supabase
+          .from('blocks')
+          .select('*')
+          .in('id', linkedIds)
+        // Preservar el orden de league_blocks (más reciente primero)
+        const blockMap = new Map((blocksData ?? []).map((b: any) => [b.id, b]))
+        safeBlocks = linkedIds.map(bid => blockMap.get(bid)).filter(Boolean) as Block[]
+      }
+    } else {
+      // Liguilla de USER: bloques propios con league_id, más reciente primero
+      const { data: blocksData } = await supabase
+        .from('blocks')
+        .select('*')
+        .eq('league_id', id)
+        .order('created_at', { ascending: false })
+      safeBlocks = blocksData ?? []
+    }
+
     setBlocks(safeBlocks)
     const blockIds = safeBlocks.map((b: Block) => b.id)
     blockIdsRef.current = blockIds
@@ -222,14 +273,21 @@ export default function LeagueDetailScreen() {
       const ratings = await fetchBlockAvgRatings(blockIds)
       setAvgRatings(ratings)
     }
-    if (count !== null) setParticipantCount(count)
     setLoading(false)
   }
+
+  const [codeCopied, setCodeCopied] = useState(false)
 
   function handleShare() {
     if (!league?.access_code) return
     Clipboard.setString(league.access_code)
-    Alert.alert('¡Copiado! 📋', `Código "${league.access_code}" copiado al portapapeles.`)
+    if (Platform.OS === 'web') {
+      // Sin Alert.alert() en web — bloquea el hilo y cierra conexiones HTTP
+      setCodeCopied(true)
+      setTimeout(() => setCodeCopied(false), 2000)
+    } else {
+      Alert.alert('¡Copiado! 📋', `Código "${league.access_code}" copiado al portapapeles.`)
+    }
   }
 
   function openStartModal() {
@@ -281,7 +339,23 @@ export default function LeagueDetailScreen() {
   const hasDates = !!league?.start_date && !!league?.end_date
   const isInProgress = hasDates && new Date() >= new Date(league?.start_date ?? '')
 
-  // ── Borrar bloque ────────────────────────────────────────────────────────
+  // ── Quitar bloque de liguilla GYM (no lo borra del catálogo) ────────────
+  async function handleRemoveFromLeague(block: Block) {
+    setRemovingBlockId(block.id)
+    const { error } = await supabase
+      .from('league_blocks')
+      .delete()
+      .eq('league_id', id)
+      .eq('block_id', block.id)
+    if (!error) {
+      setBlocks(prev => prev.filter(b => b.id !== block.id))
+    } else {
+      Alert.alert('Error', 'No se pudo quitar el bloque de la liguilla.')
+    }
+    setRemovingBlockId(null)
+  }
+
+  // ── Borrar bloque de liguilla USER (lo elimina del catálogo) ─────────────
   function handleDeleteBlock(block: Block) {
     setBlockToDelete(block)
   }
@@ -368,7 +442,7 @@ export default function LeagueDetailScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.replace('/(app)')} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
             <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
@@ -447,28 +521,90 @@ export default function LeagueDetailScreen() {
           </View>
         )}
 
-        {/* Compartir código */}
-        {league.access_code && (
-          <TouchableOpacity style={[styles.shareButton, { backgroundColor: colors.surface, borderColor: colors.primary }]} onPress={handleShare} activeOpacity={0.8}>
-            <Text style={[styles.shareCode, { color: colors.primary }]}>{league.access_code}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Icon name="copy-outline" size={14} color={colors.textMuted} />
-              <Text style={[styles.shareLabel, { color: colors.textMuted }]}>Toca para copiar el código</Text>
-            </View>
-          </TouchableOpacity>
-        )}
+        {/* Compartir código + QR */}
+        <View style={styles.shareSection}>
+          {league.access_code && (
+            <TouchableOpacity style={[styles.shareButton, { backgroundColor: colors.surface, borderColor: codeCopied ? colors.success : colors.primary }]} onPress={handleShare} activeOpacity={0.8}>
+              <Text style={[styles.shareCode, { color: codeCopied ? colors.success : colors.primary }]}>
+                {codeCopied ? '¡Copiado!' : league.access_code}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Icon name={codeCopied ? 'checkmark-outline' : 'copy-outline'} size={14} color={colors.textMuted} />
+                <Text style={[styles.shareLabel, { color: colors.textMuted }]}>
+                  {codeCopied ? 'Código copiado al portapapeles' : 'Toca para copiar el código'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          <View style={styles.qrActions}>
+            <TouchableOpacity
+              style={[styles.qrActionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => setShowQR(true)}
+              activeOpacity={0.8}
+            >
+              <Icon name="qr-code-outline" size={18} color={colors.textSecondary} />
+              <Text style={[styles.qrActionText, { color: colors.textSecondary }]}>Mostrar QR</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.qrActionBtn, { backgroundColor: colors.surface, borderColor: linkCopied ? colors.success : colors.border }]}
+              onPress={() => {
+                const link = league.is_private && league.access_code
+                  ? `climbify://join?league=${league.id}&code=${league.access_code}`
+                  : `climbify://join?league=${league.id}`
+                if (Platform.OS === 'web') {
+                  // En web evitamos Alert.alert() porque bloquea el hilo JS
+                  // y cierra las conexiones HTTP keep-alive de Supabase Storage
+                  Clipboard.setString(link)
+                  setLinkCopied(true)
+                  setTimeout(() => setLinkCopied(false), 2000)
+                } else {
+                  Share.share({ message: `Únete a "${league.name}": ${link}`, url: link })
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Icon
+                name={linkCopied ? 'checkmark-outline' : 'share-outline'}
+                size={18}
+                color={linkCopied ? colors.success : colors.textSecondary}
+              />
+              <Text style={[styles.qrActionText, { color: linkCopied ? colors.success : colors.textSecondary }]}>
+                {linkCopied ? 'Copiado' : 'Compartir enlace'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Bloques header */}
         <View style={styles.blocksHeader}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Bloques ({blocks.length})</Text>
           {isCreator && !isInProgress && (
-            <TouchableOpacity
-              style={[styles.addBlockButton, { backgroundColor: colors.surface, borderColor: colors.primary }]}
-              onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
-            >
-              <Icon name="add-circle-outline" size={18} color={colors.primary} style={{ marginRight: 4 }} />
-              <Text style={[styles.addBlockText, { color: colors.primary }]}>Añadir</Text>
-            </TouchableOpacity>
+            isGymLeague ? (
+              <View style={styles.gymBlockActions}>
+                <TouchableOpacity
+                  style={[styles.addBlockButton, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+                  onPress={() => router.push(`/(app)/leagues/${league.id}/select-blocks` as any)}
+                >
+                  <Icon name="search-outline" size={16} color={colors.primary} />
+                  <Text style={[styles.addBlockText, { color: colors.primary }]}>Catálogo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.addBlockButton, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push(`/(app)/gym/blocks/add?leagueId=${league.id}` as any)}
+                >
+                  <Icon name="add-circle-outline" size={16} color={colors.textInverse} />
+                  <Text style={[styles.addBlockText, { color: colors.textInverse }]}>Nuevo</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.addBlockButton, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+                onPress={() => router.push(`/(app)/leagues/${league.id}/add-block`)}
+              >
+                <Icon name="add-circle-outline" size={18} color={colors.primary} style={{ marginRight: 4 }} />
+                <Text style={[styles.addBlockText, { color: colors.primary }]}>Añadir</Text>
+              </TouchableOpacity>
+            )
           )}
         </View>
 
@@ -486,7 +622,8 @@ export default function LeagueDetailScreen() {
         ) : (
           blocks.map((block, index) => (
             <View key={block.id} style={styles.blockRow}>
-              {isCreator && !isInProgress && (
+              {/* Flechas de orden solo para USER creator */}
+              {isCreator && !isInProgress && !isGymLeague && (
                 <View style={styles.arrowColumn}>
                   <TouchableOpacity
                     style={[styles.arrowBtn, { backgroundColor: colors.surface, borderColor: colors.border }, index === 0 && styles.arrowBtnDisabled]}
@@ -511,14 +648,29 @@ export default function LeagueDetailScreen() {
                   attempt={userAttempts[block.id] ?? null}
                   avgRating={avgRatings[block.id] ?? null}
                   onPress={() =>
-                    isCreator && !isInProgress
+                    isCreator && !isInProgress && !isGymLeague
                       ? router.push(`/(app)/leagues/${league.id}/add-block?blockId=${block.id}`)
                       : router.push(`/(app)/blocks/${block.id}`)
                   }
                 />
               </View>
 
-              {isCreator && !isInProgress && (
+              {/* GYM creator: botón Quitar (no borra el bloque, solo desvincula) */}
+              {isCreator && !isInProgress && isGymLeague && (
+                <TouchableOpacity
+                  style={[styles.removeHandle, { borderColor: colors.border }]}
+                  onPress={() => handleRemoveFromLeague(block)}
+                  disabled={removingBlockId === block.id}
+                >
+                  {removingBlockId === block.id
+                    ? <ActivityIndicator size="small" color={colors.textMuted} />
+                    : <Text style={[styles.removeText, { color: colors.error }]}>Quitar</Text>
+                  }
+                </TouchableOpacity>
+              )}
+
+              {/* USER creator: papelera (borra el bloque completamente) */}
+              {isCreator && !isInProgress && !isGymLeague && (
                 <TouchableOpacity style={styles.deleteHandle} onPress={() => handleDeleteBlock(block)}>
                   <Icon name="trash-outline" size={20} color={colors.error} />
                 </TouchableOpacity>
@@ -620,6 +772,18 @@ export default function LeagueDetailScreen() {
           locale="es_ES"
         />
       )}
+
+      {/* Modal QR */}
+      {league && (
+        <LeagueQRModal
+          visible={showQR}
+          onClose={() => setShowQR(false)}
+          leagueName={league.name}
+          leagueId={league.id}
+          accessCode={league.access_code}
+          isPrivate={league.is_private}
+        />
+      )}
     </SafeAreaView>
   )
 }
@@ -660,19 +824,26 @@ const styles = StyleSheet.create({
   startHintText:           { fontSize: typography.size.sm, flex: 1 },
   startButton:             { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, paddingVertical: spacing.sm },
   startButtonText:         { fontWeight: typography.weight.bold, fontSize: typography.size.md },
-  shareButton:             { borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, alignItems: 'center', gap: spacing.xs, marginBottom: spacing.lg },
+  shareSection:            { marginBottom: spacing.lg, gap: spacing.sm },
+  shareButton:             { borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, alignItems: 'center', gap: spacing.xs },
   shareCode:               { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold, letterSpacing: 4 },
   shareLabel:              { fontSize: typography.size.sm },
+  qrActions:               { flexDirection: 'row', gap: spacing.sm },
+  qrActionBtn:             { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: radius.md, borderWidth: 1, paddingVertical: spacing.sm },
+  qrActionText:            { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   blocksHeader:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   sectionTitle:            { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
   addBlockButton:          { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   addBlockText:            { fontWeight: typography.weight.bold, fontSize: typography.size.sm },
+  gymBlockActions:         { flexDirection: 'row', gap: spacing.xs },
   blockRow:                { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
   arrowColumn:             { flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, width: 32 },
   arrowBtn:                { padding: 4, borderRadius: radius.sm, borderWidth: 1 },
   arrowBtnDisabled:        { opacity: 0.3 },
   blockCardWrapper:        { flex: 1 },
   deleteHandle:            { padding: spacing.xs, alignItems: 'center', justifyContent: 'center', width: 36, height: 48 },
+  removeHandle:            { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.sm, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  removeText:              { fontSize: typography.size.xs, fontWeight: typography.weight.bold },
   emptyBlocks:             { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
   emptyText:               { fontSize: typography.size.md, fontWeight: typography.weight.medium },
   emptySubtext:            { fontSize: typography.size.sm },

@@ -68,7 +68,7 @@ export default function GymProfileScreen() {
   const router = useRouter()
   const { colors } = useTheme()
   const { user } = useSession()
-  const { isUser } = useProfile()
+  const { isUser, isGym } = useProfile()
 
   const [tab, setTab] = useState<Tab>('info')
   const [gymProfile, setGymProfile] = useState<GymProfile | null>(null)
@@ -145,7 +145,7 @@ export default function GymProfileScreen() {
     setBlocksLoading(false)
   }
 
-  useFocusEffect(useCallback(() => { loadBlocks() }, [id, user]))
+  useFocusEffect(useCallback(() => { loadBlocks() }, [id, user?.id]))
 
   async function loadGymStats() {
     if (!id || !user) return
@@ -535,6 +535,7 @@ export default function GymProfileScreen() {
                       participantCount={participantCounts[l.id] ?? 0}
                       currentUserId={user?.id ?? null}
                       isParticipant={myLeagues.has(l.id)}
+                      isGymAccount={isGym}
                       onJoined={loadLeagues}
                       onOpenCodeModal={setCodeModalLeagueId}
                     />
@@ -551,6 +552,7 @@ export default function GymProfileScreen() {
                       participantCount={participantCounts[l.id] ?? 0}
                       currentUserId={user?.id ?? null}
                       isParticipant={myLeagues.has(l.id)}
+                      isGymAccount={isGym}
                       onJoined={loadLeagues}
                       onOpenCodeModal={setCodeModalLeagueId}
                     />

@@ -24,7 +24,18 @@ const STYLES_OPTIONS = [
   'Romos', 'Talones', 'Empeines', 'Dinámicos',
 ]
 
-interface GymStats { activeBlocks: number; attemptsThisWeek: number }
+interface GymStats { activeBlocks: number; usersThisWeek: number }
+
+/** Devuelve el lunes de la semana actual a las 00:00:00 */
+function getLastMonday(): Date {
+  const now = new Date()
+  const day = now.getDay() // 0=Dom, 1=Lun, …, 6=Sáb
+  const diff = day === 0 ? 6 : day - 1
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - diff)
+  monday.setHours(0, 0, 0, 0)
+  return monday
+}
 interface Block {
   id: string; identifier: string; difficulty: string
   photo_url: string; color?: string | null; sector?: string | null
@@ -37,7 +48,7 @@ export default function GymHomeScreen() {
   const router = useRouter()
   const { colors, toggleTheme, isDark } = useTheme()
 
-  const [stats, setStats] = useState<GymStats>({ activeBlocks: 0, attemptsThisWeek: 0 })
+  const [stats, setStats] = useState<GymStats>({ activeBlocks: 0, usersThisWeek: 0 })
   const [blocks, setBlocks] = useState<Block[]>([])
   const [avgRatings, setAvgRatings] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
@@ -51,37 +62,44 @@ export default function GymHomeScreen() {
 
   useEffect(() => { if (isUser) router.replace('/(app)') }, [isUser])
 
+  const userId = user?.id
+
   const fetchData = useCallback(async () => {
-    if (!user) return
+    if (!userId) return
     setLoading(true)
 
-    const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
+    // 1. Bloques activos del gym
+    const { data: blocksData } = await supabase
+      .from('blocks')
+      .select('*')
+      .eq('gym_id', userId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
 
-    const [blocksRes, attemptsRes] = await Promise.all([
-      supabase
-        .from('blocks')
-        .select('*')
-        .eq('gym_id', user.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('attempts')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', weekAgo)
-        .in('block_id',
-          (await supabase.from('blocks').select('id').eq('gym_id', user.id)).data?.map(b => b.id) ?? []
-        ),
-    ])
-
-    if (blocksRes.data) {
-      setBlocks(blocksRes.data)
-      setStats(s => ({ ...s, activeBlocks: blocksRes.data.length }))
-      const ratings = await fetchBlockAvgRatings(blocksRes.data.map((b: Block) => b.id))
+    if (blocksData) {
+      setBlocks(blocksData)
+      setStats(s => ({ ...s, activeBlocks: blocksData.length }))
+      const ratings = await fetchBlockAvgRatings(blocksData.map((b: Block) => b.id))
       setAvgRatings(ratings)
     }
-    setStats(s => ({ ...s, attemptsThisWeek: attemptsRes.count ?? 0 }))
+
+    // 2. Usuarios únicos que resolvieron ≥1 bloque desde el lunes de esta semana
+    const blockIds = blocksData?.map((b: Block) => b.id) ?? []
+    let usersThisWeek = 0
+    if (blockIds.length > 0) {
+      const monday = getLastMonday()
+      const { data: resolvedData } = await supabase
+        .from('attempts')
+        .select('user_id')
+        .in('block_id', blockIds)
+        .neq('result', 'not_completed')
+        .gte('updated_at', monday.toISOString())
+      usersThisWeek = new Set((resolvedData ?? []).map((a: any) => a.user_id)).size
+    }
+    setStats(s => ({ ...s, usersThisWeek }))
+
     setLoading(false)
-  }, [user])
+  }, [userId])
 
   useFocusEffect(useCallback(() => { fetchData() }, [fetchData]))
 
@@ -192,8 +210,8 @@ export default function GymHomeScreen() {
             {nearLimit && <Text style={[styles.warningText, { color: colors.warning }]}>Cerca del límite</Text>}
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: colors.secondary }]}>{stats.attemptsThisWeek}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Intentos esta semana</Text>
+            <Text style={[styles.statValue, { color: colors.secondary }]}>{stats.usersThisWeek}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Usuarios activos esta semana</Text>
           </View>
         </View>
 
@@ -209,17 +227,17 @@ export default function GymHomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.quickBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push(`/(app)/gym/${user?.id}/ranking`)} activeOpacity={0.8}
+            onPress={() => router.push('/(app)/gym/leagues' as any)} activeOpacity={0.8}
           >
-            <Icon name="podium-outline" size={22} color={colors.textSecondary} />
-            <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Ver ranking</Text>
+            <Icon name="trophy-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Liguillas</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.quickBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push('/(app)/leagues/create')} activeOpacity={0.8}
+            onPress={() => router.push('/(app)/gym/stats' as any)} activeOpacity={0.8}
           >
-            <Icon name="trophy-outline" size={22} color={colors.textSecondary} />
-            <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Crear liguilla</Text>
+            <Icon name="bar-chart-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Estadísticas</Text>
           </TouchableOpacity>
         </View>
 
@@ -403,7 +421,6 @@ const styles = StyleSheet.create({
   quickBtn: { flex: 1, borderRadius: radius.md, borderWidth: 1, padding: spacing.sm, alignItems: 'center', gap: 4 },
   quickBtnText: { fontSize: typography.size.xs, fontWeight: typography.weight.bold, color: '#fff', textAlign: 'center' },
   quickBtnTextAlt: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold, textAlign: 'center' },
-  loader: { marginTop: spacing.md },
   emptyBlocks: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.xl, alignItems: 'center', gap: spacing.sm },
   emptyText: { fontSize: typography.size.md, fontWeight: typography.weight.semibold, textAlign: 'center' },
   emptySubtext: { fontSize: typography.size.sm, textAlign: 'center', lineHeight: typography.size.sm * 1.5 },

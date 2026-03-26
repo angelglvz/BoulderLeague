@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
   TextInput, ScrollView, ActivityIndicator, Alert, Image, Platform,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../../../lib/supabase'
 import { useSession } from '../../../../hooks'
@@ -32,6 +32,7 @@ const STYLES = [
 
 export default function AddGymBlockScreen() {
   const router = useRouter()
+  const { leagueId } = useLocalSearchParams<{ leagueId?: string }>()
   const { user } = useSession()
   const { colors } = useTheme()
 
@@ -139,7 +140,7 @@ export default function AddGymBlockScreen() {
     setSaving(true)
     try {
       const photoUrl = await uploadPhoto(photoUri!)
-      const { error } = await supabase.from('blocks').insert({
+      const { data: block, error } = await supabase.from('blocks').insert({
         owner_type: 'gym',
         gym_id: user.id,
         photo_url: photoUrl,
@@ -148,8 +149,17 @@ export default function AddGymBlockScreen() {
         sector: sector.trim() || null,
         color: selectedStyles.size > 0 ? Array.from(selectedStyles).join(', ') : null,
         is_active: true,
-      })
+      }).select('id').single()
       if (error) throw error
+
+      // Si viene de una liguilla, vincular el bloque al crearlo
+      if (leagueId && block?.id) {
+        await supabase.from('league_blocks').insert({
+          league_id: leagueId,
+          block_id:  block.id,
+        })
+      }
+
       router.back()
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'No se pudo guardar el bloque')
@@ -178,6 +188,16 @@ export default function AddGymBlockScreen() {
             <Icon name="warning-outline" size={16} color={colors.warning} />
             <Text style={[styles.warningText, { color: colors.warning }]}>
               {activeCount}/100 bloques activos. Añadir este bloque desactivará el más antiguo.
+            </Text>
+          </View>
+        )}
+
+        {/* Banner de contexto de liguilla */}
+        {leagueId && (
+          <View style={[styles.leagueBanner, { backgroundColor: colors.primaryMuted, borderColor: colors.primary + '55' }]}>
+            <Icon name="information-circle-outline" size={16} color={colors.primary} />
+            <Text style={[styles.leagueBannerText, { color: colors.primary }]}>
+              Este bloque se añadirá a tu catálogo y a la liguilla. Solo podrá resolverse una vez que la liguilla haya comenzado.
             </Text>
           </View>
         )}
@@ -325,6 +345,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, borderWidth: 1, padding: spacing.md,
   },
   warningText: { flex: 1, fontSize: typography.size.sm },
+  leagueBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,
+    borderRadius: radius.md, borderWidth: 1, padding: spacing.md,
+  },
+  leagueBannerText: { flex: 1, fontSize: typography.size.sm, lineHeight: 18 },
   // Foto
   photoWrap: { position: 'relative' },
   photoPreview: { width: '100%', height: 260, borderRadius: radius.lg },

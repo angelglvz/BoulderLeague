@@ -29,8 +29,8 @@ export default function AppLayout() {
       return
     }
 
-    // Rutas exclusivas de USER — redirigir a gyms
-    const userOnlyPaths = ['(app)/leagues/create', '(app)/leagues/join', '(app)/gyms']
+    // Rutas exclusivas de USER — redirigir a gym
+    const userOnlyPaths = ['(app)/leagues/join', '(app)/gyms']
     const isOnUserRoute = userOnlyPaths.some(p => currentPath.includes(p))
     if (isOnUserRoute && isGym) {
       router.replace('/(app)/gym')
