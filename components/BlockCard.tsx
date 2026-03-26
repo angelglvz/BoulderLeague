@@ -1,11 +1,13 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native'
 import { typography, spacing, radius } from '../constants'
 import { useTheme } from '../lib/ThemeContext'
+ import { Icon } from './Icon'
 import type { Block, Attempt } from '../types'
 
 interface Props {
   block: Block
   attempt?: Attempt | null
+  avgRating?: number | null
   onPress?: () => void
 }
 
@@ -26,12 +28,15 @@ function goesLabel(numberOfGoes: number): string {
   return `${numberOfGoes} pegues`
 }
 
-export function BlockCard({ block, attempt, onPress }: Props) {
+export function BlockCard({ block, attempt, avgRating, onPress }: Props) {
   const { colors } = useTheme()
 
   const isCompleted  = attempt != null && attempt.number_of_goes >= 1
   const isTried      = attempt != null && attempt.number_of_goes === 0
   const hasResult    = attempt != null
+
+  // Estrellas redondeadas al entero más cercano (3.3→3, 3.5→4)
+  const stars = avgRating != null ? Math.round(avgRating) : null
 
   return (
     <TouchableOpacity
@@ -65,6 +70,19 @@ export function BlockCard({ block, attempt, onPress }: Props) {
           </Text>
         ) : (
           <Text style={[styles.noDifficulty, { color: colors.textMuted }]}>Sin dificultad</Text>
+        )}
+        {/* Mini estrellas de valoración media */}
+        {stars !== null && (
+          <View style={styles.starsRow}>
+            {[1, 2, 3, 4, 5].map(s => (
+              <Icon
+                key={s}
+                name={s <= stars ? 'star' : 'star-outline'}
+                size={11}
+                color={s <= stars ? '#F5C518' : colors.textMuted}
+              />
+            ))}
+          </View>
         )}
       </View>
 
@@ -126,6 +144,11 @@ const styles = StyleSheet.create({
   noDifficulty: {
     fontSize: typography.size.sm,
     fontStyle: 'italic',
+  },
+  starsRow: {
+    flexDirection: 'row',
+    gap: 1,
+    marginTop: 1,
   },
   badge: {
     borderRadius: radius.sm,

@@ -1,22 +1,20 @@
 import { useEffect, useState } from 'react'
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  ActivityIndicator,
-  ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
+  ActivityIndicator, ScrollView, TextInput,
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
-import { calcScore, resultFromGoes, GOES_LABELS, goesFromDB, type Goes } from '../../../../lib/scoring'
+import { calcScore, resultFromGoes, goesFromDB, type Goes } from '../../../../lib/scoring'
 import { typography, spacing, radius } from '../../../../constants'
 import { useTheme } from '../../../../lib/ThemeContext'
-import { Icon } from '../../../../components'
+import { Icon, StarRating } from '../../../../components'
 import type { Block, Attempt } from '../../../../types'
 
-const GOES_OPTIONS: Goes[] = [0, 1, 2, 3, 4, 5, 6]
+// Fila 1: solo Flash | Fila 2: 2×, 3×, 4×, +5×
+const GOES_ROW1: Goes[] = [1]
+const GOES_ROW2: Goes[] = [2, 3, 4, 6]
+const GOES_SHORT: Record<Goes, string> = { 1: 'Flash', 2: '2×', 3: '3×', 4: '4×', 5: '5×', 6: '+5×' }
 
 type LeagueStatus = 'not_started' | 'in_progress' | 'finished' | null
 
@@ -25,23 +23,20 @@ export default function LogAttemptScreen() {
   const router = useRouter()
   const { colors } = useTheme()
 
-  function goBack() {
-    router.replace(`/(app)/blocks/${id}` as any)
-  }
+  function goBack() { router.replace(`/(app)/blocks/${id}` as any) }
 
   const [block, setBlock] = useState<Block | null>(null)
   const [existingAttempt, setExistingAttempt] = useState<Attempt | null>(null)
-  const [selectedGoes, setSelectedGoes] = useState<Goes>(0)
+  const [selectedGoes, setSelectedGoes] = useState<Goes | null>(null)
+  const [myRating, setMyRating] = useState<number | null>(null)
+  const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
-  // null = sin liguilla (siempre disponible) | string = estado de la liguilla
   const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>(null)
 
-  useEffect(() => {
-    if (id) loadData()
-  }, [id])
+  useEffect(() => { if (id) loadData() }, [id])
 
   async function loadData() {
     setLoading(true)
@@ -50,53 +45,33 @@ export default function LogAttemptScreen() {
       const uid = sessionData.session?.user?.id ?? null
       setUserId(uid)
 
-      const { data: blockData } = await supabase
-        .from('blocks')
-        .select('*')
-        .eq('id', id)
-        .single()
+      const { data: blockData } = await supabase.from('blocks').select('*').eq('id', id).single()
 
       if (blockData) {
         setBlock(blockData)
-
         if (blockData.league_id) {
-          // Bloque de liguilla → cargar estado
           const { data: leagueData } = await supabase
-            .from('leagues')
-            .select('start_date, end_date')
-            .eq('id', blockData.league_id)
-            .single()
-
+            .from('leagues').select('start_date, end_date').eq('id', blockData.league_id).single()
           if (leagueData) {
             const now = new Date()
-            if (!leagueData.start_date || now < new Date(leagueData.start_date)) {
-              setLeagueStatus('not_started')
-            } else if (leagueData.end_date && now > new Date(leagueData.end_date)) {
-              setLeagueStatus('finished')
-            } else {
-              setLeagueStatus('in_progress')
-            }
+            if (!leagueData.start_date || now < new Date(leagueData.start_date)) setLeagueStatus('not_started')
+            else if (leagueData.end_date && now > new Date(leagueData.end_date)) setLeagueStatus('finished')
+            else setLeagueStatus('in_progress')
           } else {
-            // Liga no encontrada — tratar como no iniciada
             setLeagueStatus('not_started')
           }
         } else {
-          // Bloque de gym sin liguilla → siempre disponible
           setLeagueStatus('in_progress')
         }
       }
 
       if (uid) {
         const { data: attemptData } = await supabase
-          .from('attempts')
-          .select('*')
-          .eq('block_id', id)
-          .eq('user_id', uid)
-          .maybeSingle()
-
+          .from('attempts').select('*').eq('block_id', id).eq('user_id', uid).maybeSingle()
         if (attemptData) {
           setExistingAttempt(attemptData)
-          setSelectedGoes(goesFromDB(attemptData.number_of_goes))
+          const g = goesFromDB(attemptData.number_of_goes)
+          setSelectedGoes(g === 0 ? null : g)
         }
       }
     } finally {
@@ -107,6 +82,7 @@ export default function LogAttemptScreen() {
   async function handleSave() {
     if (!userId || !block) return
     if (existingAttempt) return
+    if (selectedGoes === null) { goBack(); return }
 
     const result = resultFromGoes(selectedGoes)
     const score = calcScore(result, selectedGoes, block.difficulty)
@@ -114,17 +90,26 @@ export default function LogAttemptScreen() {
     setSaveError(null)
 
     try {
-      const { error } = await supabase
-        .from('attempts')
-        .insert({
-          user_id: userId,
-          block_id: block.id,
-          result,
-          number_of_goes: selectedGoes,
-          score,
-        })
-
+      const { error } = await supabase.from('attempts').insert({
+        user_id: userId, block_id: block.id, result, number_of_goes: selectedGoes, score,
+      })
       if (error) throw error
+
+      // Guardar rating si lo rellenó
+      if (myRating !== null) {
+        await supabase.from('block_ratings').insert(
+          { block_id: block.id, user_id: userId, stars: myRating }
+        )
+      }
+
+      // Guardar comentario si hay texto
+      const trimmed = comment.trim()
+      if (trimmed.length > 0) {
+        await supabase.from('block_comments').insert(
+          { block_id: block.id, user_id: userId, content: trimmed }
+        )
+      }
+
       router.replace(`/(app)/blocks/${block.id}` as any)
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Error al guardar el resultado')
@@ -193,26 +178,29 @@ export default function LogAttemptScreen() {
     )
   }
 
-  // ── Formulario de registro ──
   function goesResultLabel(goes: number): string {
-    if (goes === 0) return 'Sin encadenar'
     if (goes === 1) return 'Flash'
     if (goes >= 6) return '+5 pegues'
     return `${goes} pegues`
   }
 
+  // ── Formulario de registro ──
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
         <TouchableOpacity onPress={goBack} style={styles.backButton}>
           <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
           <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
         </TouchableOpacity>
 
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Registrar resultado</Text>
-        <Text style={[styles.blockName, { color: colors.textSecondary }]}>{block.identifier}</Text>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Registrar resultado</Text>
+          <Text style={[styles.blockName, { color: colors.textSecondary }]}>{block.identifier}</Text>
+        </View>
 
         {existingAttempt ? (
+          /* ── Ya registrado ── */
           <View style={[styles.lockedCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Icon name="lock-closed-outline" size={32} color={colors.textMuted} />
             <Text style={[styles.lockedTitle, { color: colors.textPrimary }]}>Resultado ya registrado</Text>
@@ -227,39 +215,102 @@ export default function LogAttemptScreen() {
             </View>
             <TouchableOpacity
               style={[styles.backFullButton, { borderColor: colors.border }]}
-              onPress={goBack}
-              activeOpacity={0.8}
+              onPress={goBack} activeOpacity={0.8}
             >
               <Text style={[styles.backFullButtonText, { color: colors.textSecondary }]}>Volver al bloque</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
-            <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>¿Cuántos pegues necesitaste?</Text>
-            <View style={styles.optionsGrid}>
-              {GOES_OPTIONS.map((g) => {
-                const isSelected = g === selectedGoes
-                return (
-                  <TouchableOpacity
-                    key={g}
-                    style={[
-                      styles.option,
-                      { borderColor: colors.border, backgroundColor: colors.surface },
-                      isSelected && { borderColor: colors.primary, backgroundColor: colors.primary + '20' },
-                    ]}
-                    onPress={() => { setSelectedGoes(g); setSaveError(null) }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[
-                      styles.optionText,
-                      { color: isSelected ? colors.primary : colors.textSecondary },
-                      isSelected && { fontWeight: typography.weight.bold },
-                    ]}>
-                      {GOES_LABELS[g]}
-                    </Text>
+            {/* ── Selector de pegues: Flash solo + 4 botones ── */}
+            <View>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Pegues</Text>
+              <View style={styles.goesGrid}>
+                {/* Fila 1: Flash — ancho completo */}
+                {GOES_ROW1.map((g) => {
+                  const isSelected = g === selectedGoes
+                  return (
+                    <TouchableOpacity
+                      key={g}
+                      style={[
+                        styles.goesBtnFull,
+                        { borderColor: colors.border, backgroundColor: colors.surface },
+                        isSelected && { borderColor: colors.primary, backgroundColor: colors.primary + '18' },
+                      ]}
+                      onPress={() => { setSelectedGoes(g); setSaveError(null) }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[
+                        styles.goesBtnLabel,
+                        { color: isSelected ? colors.primary : colors.textPrimary },
+                        isSelected && { fontWeight: typography.weight.bold },
+                      ]}>
+                        {GOES_SHORT[g]}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+                {/* Fila 2: 2×, 3×, 4×, +5× */}
+                <View style={styles.goesRow}>
+                  {GOES_ROW2.map((g) => {
+                    const isSelected = g === selectedGoes
+                    return (
+                      <TouchableOpacity
+                        key={g}
+                        style={[
+                          styles.goesBtn,
+                          { borderColor: colors.border, backgroundColor: colors.surface },
+                          isSelected && { borderColor: colors.primary, backgroundColor: colors.primary + '18' },
+                        ]}
+                        onPress={() => { setSelectedGoes(g); setSaveError(null) }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[
+                          styles.goesBtnLabel,
+                          { color: isSelected ? colors.primary : colors.textPrimary },
+                          isSelected && { fontWeight: typography.weight.bold },
+                        ]}>
+                          {GOES_SHORT[g]}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+            </View>
+
+            {/* ── Valoración ── */}
+            <View>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Valoración (opcional)</Text>
+              <View style={styles.ratingRow}>
+                <StarRating value={myRating} onChange={setMyRating} size={32} />
+                {myRating !== null && (
+                  <TouchableOpacity onPress={() => setMyRating(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Icon name="close-circle-outline" size={18} color={colors.textMuted} />
                   </TouchableOpacity>
-                )
-              })}
+                )}
+              </View>
+            </View>
+
+            {/* ── Comentario ── */}
+            <View>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Comentario (opcional)</Text>
+              <View style={[styles.commentBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <TextInput
+                  style={[styles.commentInput, { color: colors.textPrimary }]}
+                  placeholder="¿Qué te pareció el bloque?"
+                  placeholderTextColor={colors.textMuted}
+                  value={comment}
+                  onChangeText={(t) => setComment(t.slice(0, 300))}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  maxLength={300}
+                />
+                <Text style={[styles.charCount, { color: comment.length >= 280 ? colors.warning : colors.textMuted }]}>
+                  {comment.length}/300
+                </Text>
+              </View>
             </View>
 
             {saveError && (
@@ -269,15 +320,27 @@ export default function LogAttemptScreen() {
               </View>
             )}
 
+            {/* ── Botón dinámico ── */}
             <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: colors.primary }, saving && styles.saveButtonDisabled]}
+              style={[
+                styles.saveButton,
+                selectedGoes !== null
+                  ? { backgroundColor: colors.primary }
+                  : { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+                saving && styles.saveButtonDisabled,
+              ]}
               onPress={handleSave}
               disabled={saving}
               activeOpacity={0.8}
             >
               {saving
-                ? <ActivityIndicator color={colors.textInverse} />
-                : <Text style={[styles.saveButtonText, { color: colors.textInverse }]}>Guardar resultado</Text>
+                ? <ActivityIndicator color={selectedGoes !== null ? colors.textInverse : colors.textSecondary} />
+                : <Text style={[
+                    styles.saveButtonText,
+                    { color: selectedGoes !== null ? colors.textInverse : colors.textSecondary },
+                  ]}>
+                    {selectedGoes !== null ? 'Registrar' : 'Salir sin registrar'}
+                  </Text>
               }
             </TouchableOpacity>
           </>
@@ -291,10 +354,33 @@ const styles = StyleSheet.create({
   container:          { flex: 1 },
   centered:           { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   scroll:             { padding: spacing.lg, gap: spacing.lg },
-  backButton:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.xs },
+  backButton:         { flexDirection: 'row', alignItems: 'center', gap: 4 },
   backText:           { fontSize: typography.size.md },
-  title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
-  blockName:          { fontSize: typography.size.lg, marginTop: -spacing.sm },
+  header:             { gap: 2 },
+  title:              { fontSize: typography.size.xl, fontWeight: typography.weight.extrabold },
+  blockName:          { fontSize: typography.size.md },
+  // Grid pegues
+  sectionLabel:       { fontSize: typography.size.xs, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
+  goesGrid:           { gap: spacing.sm },
+  goesBtnFull:        { width: '100%', paddingVertical: spacing.md, borderRadius: radius.md, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  goesRow:            { flexDirection: 'row', gap: spacing.sm },
+  goesBtn:            { flex: 1, paddingVertical: spacing.md, borderRadius: radius.md, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  goesBtnLabel:       { fontSize: typography.size.lg, fontWeight: typography.weight.semibold },
+  // Rating
+  ratingRow:          { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // Comentario
+  commentBox:         { borderRadius: radius.md, borderWidth: 1, padding: spacing.md },
+  commentInput:       { fontSize: typography.size.sm, minHeight: 64, lineHeight: 20 },
+  charCount:          { fontSize: typography.size.xs, textAlign: 'right', marginTop: spacing.xs },
+  // Botón
+  saveButton:         { borderRadius: radius.lg, paddingVertical: spacing.md, alignItems: 'center' },
+  saveButtonDisabled: { opacity: 0.6 },
+  saveButtonText:     { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  // Error
+  errorText:          { fontSize: typography.size.md },
+  errorCard:          { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radius.md, padding: spacing.md, borderWidth: 1 },
+  errorCardText:      { fontSize: typography.size.sm, flex: 1 },
+  // Ya registrado
   lockedCard:         { borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center', gap: spacing.md, borderWidth: 1 },
   lockedTitle:        { fontSize: typography.size.xl, fontWeight: typography.weight.bold, textAlign: 'center' },
   lockedText:         { fontSize: typography.size.sm, textAlign: 'center', lineHeight: 20 },
@@ -303,18 +389,9 @@ const styles = StyleSheet.create({
   lockedResultValue:  { fontSize: typography.size.xl, fontWeight: typography.weight.bold },
   backFullButton:     { marginTop: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl, borderRadius: radius.lg, borderWidth: 1 },
   backFullButtonText: { fontSize: typography.size.md },
-  sectionLabel:       { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
-  optionsGrid:        { gap: spacing.sm },
-  option:             { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: 2, alignItems: 'center' },
-  optionText:         { fontSize: typography.size.md, fontWeight: typography.weight.medium },
-  saveButton:         { borderRadius: radius.lg, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.sm },
-  saveButtonDisabled: { opacity: 0.6 },
-  saveButtonText:     { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  errorText:          { fontSize: typography.size.md },
-  errorCard:          { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radius.md, padding: spacing.md, borderWidth: 1 },
-  errorCardText:      { fontSize: typography.size.sm, flex: 1 },
+  // Bloqueado (liguilla)
   blockedScreen:      { flex: 1, padding: spacing.lg },
   blockedCard:        { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
   blockedTitle:       { fontSize: typography.size.xl, fontWeight: typography.weight.extrabold, textAlign: 'center' },
-  blockedSubtitle:    { fontSize: typography.size.md, textAlign: 'center', lineHeight: 22, color: 'inherit' },
+  blockedSubtitle:    { fontSize: typography.size.md, textAlign: 'center', lineHeight: 22 },
 })

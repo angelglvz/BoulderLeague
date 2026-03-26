@@ -8,6 +8,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import DateTimePickerModal from 'react-native-modal-datetime-picker'
 import { useSession } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
+import { fetchBlockAvgRatings } from '../../../lib/ratings'
 import { typography, spacing, radius } from '../../../constants'
 import { useTheme } from '../../../lib/ThemeContext'
 import { BlockCard, Icon } from '../../../components'
@@ -159,6 +160,7 @@ export default function LeagueDetailScreen() {
   const [blocks, setBlocks] = useState<Block[]>([])
   const [participantCount, setParticipantCount] = useState(0)
   const [userAttempts, setUserAttempts] = useState<Record<string, Attempt>>({})
+  const [avgRatings, setAvgRatings] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const blockIdsRef = useRef<string[]>([])
@@ -215,7 +217,11 @@ export default function LeagueDetailScreen() {
     setBlocks(safeBlocks)
     const blockIds = safeBlocks.map((b: Block) => b.id)
     blockIdsRef.current = blockIds
-    if (blockIds.length > 0) await fetchUserAttempts(blockIds)
+    if (blockIds.length > 0) {
+      await fetchUserAttempts(blockIds)
+      const ratings = await fetchBlockAvgRatings(blockIds)
+      setAvgRatings(ratings)
+    }
     if (count !== null) setParticipantCount(count)
     setLoading(false)
   }
@@ -503,6 +509,7 @@ export default function LeagueDetailScreen() {
                 <BlockCard
                   block={block}
                   attempt={userAttempts[block.id] ?? null}
+                  avgRating={avgRatings[block.id] ?? null}
                   onPress={() =>
                     isCreator && !isInProgress
                       ? router.push(`/(app)/leagues/${league.id}/add-block?blockId=${block.id}`)

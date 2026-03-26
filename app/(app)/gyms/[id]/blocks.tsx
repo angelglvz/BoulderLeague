@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
+import { fetchBlockAvgRatings } from '../../../../lib/ratings'
 import { useSession } from '../../../../hooks'
 import { useTheme } from '../../../../lib/ThemeContext'
 import { typography, spacing, radius } from '../../../../constants'
@@ -46,6 +47,7 @@ export default function GymBlocksUserScreen() {
 
   const [blocks, setBlocks] = useState<Block[]>([])
   const [attempts, setAttempts] = useState<Record<string, Attempt>>({})
+  const [avgRatings, setAvgRatings] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [diffFilter, setDiffFilter] = useState<DifficultyFilter>('all')
   const [personalFilter, setPersonalFilter] = useState<PersonalFilter>('all')
@@ -70,6 +72,10 @@ export default function GymBlocksUserScreen() {
     }
     setBlocks(blocksData ?? [])
     setAttempts(attemptsMap)
+    if (blocksData && blocksData.length > 0) {
+      const ratings = await fetchBlockAvgRatings(blocksData.map((b: Block) => b.id))
+      setAvgRatings(ratings)
+    }
     setLoading(false)
   }, [gymId, user, diffFilter])
 
@@ -129,6 +135,7 @@ export default function GymBlocksUserScreen() {
             contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
               <BlockCard block={item as any} attempt={attempts[item.id] as any ?? null}
+                avgRating={avgRatings[item.id] ?? null}
                 onPress={() => router.push(`/(app)/blocks/${item.id}`)} />
             )}
             ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
