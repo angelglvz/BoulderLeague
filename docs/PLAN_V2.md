@@ -55,7 +55,7 @@
 | Fase 2 — Home diferenciado por tipo | ✅ Completada |
 | Fase 3 — Bloques de Gym | ✅ Completada |
 | Fase 4 — Mejoras registro, scoring, valoraciones y stats | ✅ Completada |
-| Fase 5 — Rankings del Gym | 🔲 Pendiente |
+| Fase 5 — Rankings del Gym | ⏭️ Omitida (implementación actual válida) |
 | Fase 6 — Achievements | 🔲 Pendiente |
 | Fase 7 — Liguillas V2 | 🔲 Pendiente |
 
@@ -1136,10 +1136,13 @@ Cada categoría aplica un **multiplicador sobre `P(n)`**:
 | Categoría | Multiplicador |
 |-----------|--------------|
 | `volume` | × 1.0 |
-| `difficulty_easy` | × 1.0 |
-| `difficulty_mid` | × 1.4 |
-| `difficulty_advanced` | × 2.0 |
-| `difficulty_pro` | × 3.0 |
+| `difficulty_principiante` | × 1.0 |
+| `difficulty_novato` | × 1.2 |
+| `difficulty_medio` | × 1.5 |
+| `difficulty_avanzado` | × 1.8 |
+| `difficulty_experimentado` | × 2.2 |
+| `difficulty_elite` | × 2.6 |
+| `difficulty_profesional` | × 3.0 |
 | `flash` | × 1.5 |
 | `consistency` | × 1.0 (puntos fijos, ver tabla) |
 | `explorer` | × 1.5 |
@@ -1173,40 +1176,73 @@ Cada categoría aplica un **multiplicador sobre `P(n)`**:
 | 6 | 200 | 400 | Incansable |
 | n≥7 | `100×2^(n−5)` | `200×2^(n−5)` | Leyenda del bloque {n−5} |
 
-#### Categoría 2 — Dificultad Easy (`difficulty_easy`)
-> Bloques de nivel fácil completados en gym.
+#### Categoría 2 — Dificultad Principiante (`difficulty_principiante`)
+> Bloques de nivel principiante completados en gym.
 
 | Tier | Umbral | Puntos | Label |
 |------|--------|--------|-------|
-| 1 | 3 | 10 | Calentando |
-| 2 | 10 | 25 | Fluido |
-| 3 | 25 | 50 | Domina el fácil |
-| 4 | 50 | 100 | Maestro verde |
-| n≥5 | `50×2^(n−4)` | `100×2^(n−4)` | Verde {n−4} |
+| 1 | 3 | 10 | Comenzando |
+| 2 | 10 | 25 | Base sólida |
+| 3 | 25 | 50 | Confort en el inicio |
+| 4 | 50 | 100 | Maestro principiante |
+| n≥5 | `50×2^(n−4)` | `100×2^(n−4)` | Principiante Lv.{n−4} |
 
-#### Categoría 3 — Dificultad Mid (`difficulty_mid`)
+#### Categoría 3 — Dificultad Novato (`difficulty_novato`)
+> Bloques de nivel novato completados en gym.
+
+| Tier | Umbral | Puntos | Label |
+|------|--------|--------|-------|
+| 1 | 3 | 12 | Un paso más |
+| 2 | 10 | 30 | Tomando ritmo |
+| 3 | 25 | 60 | Fluido en novato |
+| 4 | 50 | 120 | Maestro novato |
+| n≥5 | `50×2^(n−4)` | `120×2^(n−4)` | Novato Lv.{n−4} |
+
+#### Categoría 4 — Dificultad Medio (`difficulty_medio`)
 > Bloques de nivel medio completados en gym.
 
 | Tier | Umbral | Puntos | Label |
 |------|--------|--------|-------|
-| 1 | 3 | 14 | A medio gas |
-| 2 | 10 | 35 | Constante |
-| 3 | 25 | 70 | Medio maestro |
-| 4 | 50 | 140 | Sólido |
-| n≥5 | `50×2^(n−4)` | `140×2^(n−4)` | Medio {n−4} |
+| 1 | 3 | 15 | A medio gas |
+| 2 | 10 | 38 | Constante |
+| 3 | 25 | 75 | Medio maestro |
+| 4 | 50 | 150 | Sólido |
+| n≥5 | `50×2^(n−4)` | `150×2^(n−4)` | Medio Lv.{n−4} |
 
-#### Categoría 4 — Dificultad Advanced (`difficulty_advanced`)
+#### Categoría 5 — Dificultad Avanzado (`difficulty_avanzado`)
 > Bloques de nivel avanzado completados en gym.
 
 | Tier | Umbral | Puntos | Label |
 |------|--------|--------|-------|
-| 1 | 3 | 20 | Cazador avanzado |
-| 2 | 10 | 50 | Perseverante |
-| 3 | 25 | 100 | Elite avanzado |
-| 4 | 50 | 200 | Obsesionado |
-| n≥5 | `50×2^(n−4)` | `200×2^(n−4)` | Avanzado {n−4} |
+| 1 | 3 | 18 | Subiendo el nivel |
+| 2 | 10 | 45 | Perseverante |
+| 3 | 25 | 90 | Élite avanzado |
+| 4 | 50 | 180 | Obsesionado |
+| n≥5 | `50×2^(n−4)` | `180×2^(n−4)` | Avanzado Lv.{n−4} |
 
-#### Categoría 5 — Dificultad Pro (`difficulty_pro`)
+#### Categoría 6 — Dificultad Experimentado (`difficulty_experimentado`)
+> Bloques de nivel experimentado completados en gym.
+
+| Tier | Umbral | Puntos | Label |
+|------|--------|--------|-------|
+| 1 | 3 | 22 | Curtido |
+| 2 | 10 | 55 | Con experiencia |
+| 3 | 25 | 110 | Veterano |
+| 4 | 50 | 220 | Señor de la roca |
+| n≥5 | `50×2^(n−4)` | `220×2^(n−4)` | Experimentado Lv.{n−4} |
+
+#### Categoría 7 — Dificultad Élite (`difficulty_elite`)
+> Bloques de nivel élite completados en gym.
+
+| Tier | Umbral | Puntos | Label |
+|------|--------|--------|-------|
+| 1 | 3 | 26 | Mentalidad élite |
+| 2 | 10 | 65 | De otro nivel |
+| 3 | 25 | 130 | Inalcanzable |
+| 4 | 50 | 260 | Élite supremo |
+| n≥5 | `50×2^(n−4)` | `260×2^(n−4)` | Élite Lv.{n−4} |
+
+#### Categoría 8 — Dificultad Profesional (`difficulty_profesional`)
 > Bloques de nivel profesional completados en gym.
 
 | Tier | Umbral | Puntos | Label |
@@ -1215,9 +1251,9 @@ Cada categoría aplica un **multiplicador sobre `P(n)`**:
 | 2 | 10 | 75 | Pro en serio |
 | 3 | 25 | 150 | Leyenda pro |
 | 4 | 50 | 300 | Más allá del límite |
-| n≥5 | `50×2^(n−4)` | `300×2^(n−4)` | Pro {n−4} |
+| n≥5 | `50×2^(n−4)` | `300×2^(n−4)` | Pro Lv.{n−4} |
 
-#### Categoría 6 — Flash (`flash`)
+#### Categoría 9 — Flash (`flash`)
 > Bloques de gym completados al primer intento.
 
 | Tier | Umbral | Puntos | Label |
@@ -1229,7 +1265,7 @@ Cada categoría aplica un **multiplicador sobre `P(n)`**:
 | 5 | 50 | 300 | Señal de flash |
 | n≥6 | `50×2^(n−5)` | `300×2^(n−5)` | Flash maestro {n−5} |
 
-#### Categoría 7 — Constancia (`consistency`)
+#### Categoría 10 — Constancia (`consistency`)
 > Días en el mes actual con al menos 1 bloque de gym completado.
 > Se puede ganar de nuevo cada mes que se cumpla el umbral.
 
@@ -1241,7 +1277,7 @@ Cada categoría aplica un **multiplicador sobre `P(n)`**:
 | 4 | 20 | 200 | Escalador constante |
 | 5 | 28 | 400 | Un mes sin parar |
 
-#### Categoría 8 — Explorador (`explorer`)
+#### Categoría 11 — Explorador (`explorer`)
 > Número de gyms distintos donde el usuario ha completado al menos 1 bloque.
 
 | Tier | Gyms | Puntos | Label |
@@ -1264,10 +1300,13 @@ Crear `lib/achievements.ts`:
 // ─────────────────────────────────────────────
 export type AchievementCategory =
   | 'volume'
-  | 'difficulty_easy'
-  | 'difficulty_mid'
-  | 'difficulty_advanced'
-  | 'difficulty_pro'
+  | 'difficulty_principiante'
+  | 'difficulty_novato'
+  | 'difficulty_medio'
+  | 'difficulty_avanzado'
+  | 'difficulty_experimentado'
+  | 'difficulty_elite'
+  | 'difficulty_profesional'
   | 'flash'
   | 'consistency'
   | 'explorer';
@@ -1285,7 +1324,15 @@ export interface MedalDefinition {
 
 export interface UserGymStats {
   gymBlocksCompleted: number;
-  gymBlocksByDifficulty: { easy: number; mid: number; advanced: number; pro: number };
+  gymBlocksByDifficulty: {
+    principiante: number;
+    novato: number;
+    medio: number;
+    avanzado: number;
+    experimentado: number;
+    elite: number;
+    profesional: number;
+  };
   gymFlashes: number;
   activeDaysThisMonth: number;
   distinctGymsWithCompletion: number;
@@ -1359,8 +1406,13 @@ export function generateMedalDefinitions(maxTier = 30): MedalDefinition[] {
 
   // Dificultades
   const diffMult: Record<string, number> = {
-    difficulty_easy: 1, difficulty_mid: 1.4,
-    difficulty_advanced: 2, difficulty_pro: 3,
+    difficulty_principiante: 1.0,
+    difficulty_novato:       1.2,
+    difficulty_medio:        1.5,
+    difficulty_avanzado:     1.8,
+    difficulty_experimentado: 2.2,
+    difficulty_elite:        2.6,
+    difficulty_profesional:  3.0,
   };
   for (const [cat, mult] of Object.entries(diffMult)) {
     for (let n = 1; n <= maxTier; n++) {
@@ -1410,13 +1462,17 @@ function volumeLabel(n: number): string {
 }
 function difficultyLabel(cat: AchievementCategory, n: number): string {
   const m: Partial<Record<AchievementCategory, string[]>> = {
-    difficulty_easy:     ['Calentando','Fluido','Domina el fácil','Maestro verde'],
-    difficulty_mid:      ['A medio gas','Constante','Medio maestro','Sólido'],
-    difficulty_advanced: ['Cazador avanzado','Perseverante','Elite avanzado','Obsesionado'],
-    difficulty_pro:      ['Toca el cielo','Pro en serio','Leyenda pro','Más allá del límite'],
+    difficulty_principiante:  ['Comenzando','Base sólida','Confort en el inicio','Maestro principiante'],
+    difficulty_novato:        ['Un paso más','Tomando ritmo','Fluido en novato','Maestro novato'],
+    difficulty_medio:         ['A medio gas','Constante','Medio maestro','Sólido'],
+    difficulty_avanzado:      ['Subiendo el nivel','Perseverante','Élite avanzado','Obsesionado'],
+    difficulty_experimentado: ['Curtido','Con experiencia','Veterano','Señor de la roca'],
+    difficulty_elite:         ['Mentalidad élite','De otro nivel','Inalcanzable','Élite supremo'],
+    difficulty_profesional:   ['Toca el cielo','Pro en serio','Leyenda pro','Más allá del límite'],
   };
   const arr = m[cat] ?? [];
-  return n <= arr.length ? arr[n-1] : `${cat.replace('difficulty_','')} ${n - arr.length}`;
+  const suffix = cat.replace('difficulty_', '');
+  return n <= arr.length ? arr[n-1] : `${suffix.charAt(0).toUpperCase() + suffix.slice(1)} Lv.${n - arr.length}`;
 }
 function flashLabel(n: number): string {
   const f = ['Primer flash','Flash en racha','Ojo de halcón','Lector de bloques','Señal de flash'];
@@ -1446,14 +1502,17 @@ export function evaluateNewAchievements(
     if (earned.has(medal.key)) continue;
     let stat = 0;
     switch (medal.category) {
-      case 'volume':              stat = stats.gymBlocksCompleted; break;
-      case 'difficulty_easy':     stat = stats.gymBlocksByDifficulty.easy; break;
-      case 'difficulty_mid':      stat = stats.gymBlocksByDifficulty.mid; break;
-      case 'difficulty_advanced': stat = stats.gymBlocksByDifficulty.advanced; break;
-      case 'difficulty_pro':      stat = stats.gymBlocksByDifficulty.pro; break;
-      case 'flash':               stat = stats.gymFlashes; break;
-      case 'consistency':         stat = stats.activeDaysThisMonth; break;
-      case 'explorer':            stat = stats.distinctGymsWithCompletion; break;
+      case 'volume':                   stat = stats.gymBlocksCompleted; break;
+      case 'difficulty_principiante':  stat = stats.gymBlocksByDifficulty.principiante; break;
+      case 'difficulty_novato':        stat = stats.gymBlocksByDifficulty.novato; break;
+      case 'difficulty_medio':         stat = stats.gymBlocksByDifficulty.medio; break;
+      case 'difficulty_avanzado':      stat = stats.gymBlocksByDifficulty.avanzado; break;
+      case 'difficulty_experimentado': stat = stats.gymBlocksByDifficulty.experimentado; break;
+      case 'difficulty_elite':         stat = stats.gymBlocksByDifficulty.elite; break;
+      case 'difficulty_profesional':   stat = stats.gymBlocksByDifficulty.profesional; break;
+      case 'flash':                    stat = stats.gymFlashes; break;
+      case 'consistency':              stat = stats.activeDaysThisMonth; break;
+      case 'explorer':                 stat = stats.distinctGymsWithCompletion; break;
     }
     if (stat >= medal.threshold) newMedals.push(medal);
   }
@@ -1567,21 +1626,33 @@ BEGIN
         AND a.result != 'not_completed'
     ),
     'gymBlocksByDifficulty', json_build_object(
-      'easy', (
+      'principiante', (
         SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
-        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='easy' AND a.result!='not_completed'
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='principiante' AND a.result!='not_completed'
       ),
-      'mid', (
+      'novato', (
         SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
-        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='mid' AND a.result!='not_completed'
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='novato' AND a.result!='not_completed'
       ),
-      'advanced', (
+      'medio', (
         SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
-        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='advanced' AND a.result!='not_completed'
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='medio' AND a.result!='not_completed'
       ),
-      'pro', (
+      'avanzado', (
         SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
-        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='pro' AND a.result!='not_completed'
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='avanzado' AND a.result!='not_completed'
+      ),
+      'experimentado', (
+        SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='experimentado' AND a.result!='not_completed'
+      ),
+      'elite', (
+        SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='elite' AND a.result!='not_completed'
+      ),
+      'profesional', (
+        SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='profesional' AND a.result!='not_completed'
       )
     ),
     'gymFlashes', (
@@ -1732,13 +1803,17 @@ WHERE id = auth.uid();
 
 ---
 
-### 6.8 — Sección de logros en la pantalla de estadísticas / perfil
+### 6.8 — Icono de usuario con puntos en el header del home
 
-En `app/(app)/profile/index.tsx`:
-- **Badge de posición global:** `"🏆 #42 en ranking global"` junto al nombre del usuario
-- **Puntos totales** debajo del nombre/alias
-- **Sección "Últimos logros":** scroll horizontal con las últimas 3-5 medallas (card compacta: icono color tier + label + puntos)
-- Enlace **"Ver todos mis logros →"** navega a la tab Logros
+En `app/(app)/index.tsx`:
+- Junto al icono de engranaje (ajustes) se añade un botón con **icono de persona** (`person-outline`)
+- Debajo del icono, en texto muy pequeño, los **puntos totales de achievements** del usuario
+- El botón está deshabilitado por ahora (`disabled`) — en el futuro gestionará el perfil del usuario
+- Los puntos se cargan en `fetchFavorites` consultando `profiles.achievement_points`
+
+> **Nota:** Se omite la creación de `app/(app)/profile/index.tsx` — la pantalla de perfil completa se implementará en una fase posterior.
+
+**Archivos:** `app/(app)/index.tsx`
 
 ---
 
@@ -1753,7 +1828,7 @@ En `app/(app)/profile/index.tsx`:
 | `app/(app)/achievements/index.tsx` | **NUEVO** | Pantalla Logros: Mis Logros + Ranking Global + Muro |
 | `app/(app)/_layout.tsx` | **MODIFICA** | Añadir tab "Logros" a la navegación principal del usuario |
 | `app/(app)/blocks/[id]/log-attempt.tsx` | **MODIFICA** | Llamar `evaluateAchievements` tras guardar intento |
-| `app/(app)/profile/index.tsx` | **MODIFICA** | Badge de ranking, puntos totales y logros recientes |
+| `app/(app)/index.tsx` | **MODIFICA** | Icono de usuario + puntos en el header (6.8 simplificado) |
 
 ---
 

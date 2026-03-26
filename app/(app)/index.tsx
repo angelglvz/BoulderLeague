@@ -47,6 +47,7 @@ export default function HomeScreen() {
   const [gymSearchLoading, setGymSearchLoading] = useState(false)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [favoriteGyms, setFavoriteGyms] = useState<Gym[]>([])
+  const [achievementPoints, setAchievementPoints] = useState<number | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Si es GYM redirigir a su home (esperar a que el perfil haya cargado)
@@ -83,7 +84,6 @@ export default function HomeScreen() {
       for (const row of data as any[]) {
         if (row.profiles) {
           ids.add(row.gym_id)
-          // contar bloques activos
           const { count } = await supabase
             .from('blocks')
             .select('id', { count: 'exact', head: true })
@@ -95,6 +95,13 @@ export default function HomeScreen() {
       setFavorites(ids)
       setFavoriteGyms(gyms)
     }
+    // Cargar puntos de logros
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('achievement_points')
+      .eq('id', user.id)
+      .single()
+    if (profileData) setAchievementPoints((profileData as any).achievement_points ?? 0)
   }, [user])
 
   useFocusEffect(useCallback(() => {
@@ -191,6 +198,19 @@ export default function HomeScreen() {
           resizeMode="contain"
         />
         <View style={styles.headerActions}>
+          {/* Icono de usuario con puntos (futuro: gestión de perfil) */}
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            activeOpacity={0.8}
+            disabled
+          >
+            <Icon name="person-outline" size={20} color={colors.textSecondary} />
+            {achievementPoints !== null && (
+              <Text style={[styles.pointsBadge, { color: colors.textMuted }]}>
+                {achievementPoints.toLocaleString()} pts
+              </Text>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setShowSettings(true)}
@@ -231,6 +251,14 @@ export default function HomeScreen() {
           >
             <Icon name="bar-chart-outline" size={22} color={colors.textSecondary} />
             <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Mis stats</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(app)/achievements' as any)}
+            activeOpacity={0.8}
+          >
+            <Icon name="medal-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Logros</Text>
           </TouchableOpacity>
         </View>
 
@@ -354,7 +382,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
   logo: { height: 52, width: 213 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  iconBtn: { width: 36, height: 36, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { minWidth: 36, minHeight: 36, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 4 },
+  pointsBadge: { fontSize: 8, fontWeight: typography.weight.semibold, lineHeight: 10 },
   signOutBtn: { borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 6 },
   signOut: { fontSize: typography.size.sm },
   quickActions: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
