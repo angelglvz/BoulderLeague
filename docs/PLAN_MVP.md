@@ -7,7 +7,20 @@
 
 ## 📍 Punto de partida para el siguiente agente
 
-> **Estado:** Fase 7 completada · **Rama:** `feature/fase-7` · **Siguiente:** Fase 8 (Build y distribución)
+> **Estado:** Fase 8 iniciada · **Rama:** `main` · **Siguiente:** Primer build `preview` APK + testers
+
+---
+
+### ✅ DEPENDENCIAS SANEADAS (2026-03-26)
+
+`package.json` limpiado y validado con `expo install --check` sin errores:
+- **Eliminados** paquetes no usados: `react-native-draggable-flatlist`, `react-native-worklets`, `expo-glass-effect`, `expo-symbols`, `react-native-is-edge-to-edge`, `expo-haptics`, `expo-asset`
+- **Movido a devDeps**: `sharp` (solo para scripts de assets)
+- **Versiones fijadas**: `react-native-reanimated@4.2.1`, `react-native-svg@15.15.3`
+- **Navigation fijada**: `@react-navigation/*` a las versiones exactas de SDK 55
+- **`app.json`**: añadidos permisos Android de cámara/galería + plugin `expo-image-picker`
+
+Ver guía completa: `docs/BUILD_DEPLOY.md`
 
 ---
 
@@ -443,11 +456,13 @@ npm run types:gen
 
 ## FASE 8 · Build y distribución
 
-- [ ] 8.1 Configurar `app.json`: nombre "BoulderLeague", icono, splash screen y bundle ID
-- [ ] 8.2 Crear cuenta en EAS y configurar `eas.json` con perfil `preview`
-- [ ] 8.3 Generar build Android `.apk` con `eas build --platform android --profile preview`
-- [ ] 8.4 Distribuir el `.apk` a los primeros testers
-- [ ] 8.5 Recoger feedback e identificar bugs críticos del MVP
+- [x] 8.1 Configurar `app.json`: nombre "Climbify", icono, splash screen, bundle ID, permisos Android y plugin `expo-image-picker` ✅
+- [x] 8.2 `eas.json` configurado con perfil `preview` (APK) y `production` (AAB) ✅
+- [x] 8.3 Sanear dependencias: eliminar paquetes no usados, fijar versiones SDK 55, validar con `expo install --check` ✅
+- [x] 8.4 Documentar proceso completo en `docs/BUILD_DEPLOY.md` ✅
+- [ ] 8.5 Ejecutar primer build APK: `eas build --platform android --profile preview`
+- [ ] 8.6 Distribuir el `.apk` a los primeros testers (QR desde expo.dev)
+- [ ] 8.7 Recoger feedback e identificar bugs críticos del MVP
 
 ---
 
