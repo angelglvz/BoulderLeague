@@ -10,7 +10,7 @@ import {
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
-import { calcScore, GOES_LABELS, goesFromDB, type Goes } from '../../../../lib/scoring'
+import { calcScore, resultFromGoes, GOES_LABELS, goesFromDB, type Goes } from '../../../../lib/scoring'
 import { typography, spacing, radius } from '../../../../constants'
 import { useTheme } from '../../../../lib/ThemeContext'
 import { Icon } from '../../../../components'
@@ -18,13 +18,16 @@ import type { Block, Attempt } from '../../../../types'
 
 const GOES_OPTIONS: Goes[] = [0, 1, 2, 3, 4, 5, 6]
 
-// Estado de la liga respecto al registro de resultados
-type LeagueStatus = 'not_started' | 'in_progress' | 'finished'
+type LeagueStatus = 'not_started' | 'in_progress' | 'finished' | null
 
 export default function LogAttemptScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { colors } = useTheme()
+
+  function goBack() {
+    router.replace(`/(app)/blocks/${id}` as any)
+  }
 
   const [block, setBlock] = useState<Block | null>(null)
   const [existingAttempt, setExistingAttempt] = useState<Attempt | null>(null)
@@ -33,7 +36,8 @@ export default function LogAttemptScreen() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
-  const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>('not_started')
+  // null = sin liguilla (siempre disponible) | string = estado de la liguilla
+  const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>(null)
 
   useEffect(() => {
     if (id) loadData()
@@ -42,12 +46,10 @@ export default function LogAttemptScreen() {
   async function loadData() {
     setLoading(true)
     try {
-      // Sesión actual
       const { data: sessionData } = await supabase.auth.getSession()
       const uid = sessionData.session?.user?.id ?? null
       setUserId(uid)
 
-      // Datos del bloque
       const { data: blockData } = await supabase
         .from('blocks')
         .select('*')
@@ -57,28 +59,33 @@ export default function LogAttemptScreen() {
       if (blockData) {
         setBlock(blockData)
 
-        // Estado de la liga del bloque
-        const { data: leagueData } = await supabase
-          .from('leagues')
-          .select('start_date, end_date')
-          .eq('id', blockData.league_id)
-          .single()
+        if (blockData.league_id) {
+          // Bloque de liguilla → cargar estado
+          const { data: leagueData } = await supabase
+            .from('leagues')
+            .select('start_date, end_date')
+            .eq('id', blockData.league_id)
+            .single()
 
-        if (leagueData) {
-          const now = new Date()
-          if (!leagueData.start_date) {
-            setLeagueStatus('not_started')
-          } else if (now < new Date(leagueData.start_date)) {
-            setLeagueStatus('not_started')
-          } else if (leagueData.end_date && now > new Date(leagueData.end_date)) {
-            setLeagueStatus('finished')
+          if (leagueData) {
+            const now = new Date()
+            if (!leagueData.start_date || now < new Date(leagueData.start_date)) {
+              setLeagueStatus('not_started')
+            } else if (leagueData.end_date && now > new Date(leagueData.end_date)) {
+              setLeagueStatus('finished')
+            } else {
+              setLeagueStatus('in_progress')
+            }
           } else {
-            setLeagueStatus('in_progress')
+            // Liga no encontrada — tratar como no iniciada
+            setLeagueStatus('not_started')
           }
+        } else {
+          // Bloque de gym sin liguilla → siempre disponible
+          setLeagueStatus('in_progress')
         }
       }
 
-      // Intento existente del usuario
       if (uid) {
         const { data: attemptData } = await supabase
           .from('attempts')
@@ -99,9 +106,10 @@ export default function LogAttemptScreen() {
 
   async function handleSave() {
     if (!userId || !block) return
-    if (existingAttempt) return // seguridad extra: no permitir modificar
+    if (existingAttempt) return
 
-    const score = calcScore(selectedGoes, block.difficulty)
+    const result = resultFromGoes(selectedGoes)
+    const score = calcScore(result, selectedGoes, block.difficulty)
     setSaving(true)
     setSaveError(null)
 
@@ -111,20 +119,21 @@ export default function LogAttemptScreen() {
         .insert({
           user_id: userId,
           block_id: block.id,
+          result,
           number_of_goes: selectedGoes,
           score,
         })
 
       if (error) throw error
-      router.replace(`/(app)/blocks/${block.id}`)
+      router.replace(`/(app)/blocks/${block.id}` as any)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Error al guardar el resultado'
-      setSaveError(msg)
+      setSaveError(e instanceof Error ? e.message : 'Error al guardar el resultado')
     } finally {
       setSaving(false)
     }
   }
 
+  // ── Loading ──
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
@@ -136,21 +145,23 @@ export default function LogAttemptScreen() {
   if (!block) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Icon name="alert-circle-outline" size={48} color={colors.error} />
         <Text style={[styles.errorText, { color: colors.error }]}>Bloque no encontrado</Text>
       </View>
     )
   }
 
+  // ── Liguilla no iniciada ──
   if (leagueStatus === 'not_started') {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.blockedScreen}>
-          <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
+          <TouchableOpacity onPress={goBack} style={styles.backButton}>
             <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
             <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
           <View style={styles.blockedCard}>
-            <Text style={styles.blockedEmoji}>⏳</Text>
+            <Icon name="time-outline" size={48} color={colors.textMuted} />
             <Text style={[styles.blockedTitle, { color: colors.textPrimary }]}>La liguilla aún no ha comenzado</Text>
             <Text style={[styles.blockedSubtitle, { color: colors.textMuted }]}>
               Podrás registrar tus resultados una vez que el creador inicie la liguilla.
@@ -161,16 +172,17 @@ export default function LogAttemptScreen() {
     )
   }
 
+  // ── Liguilla finalizada ──
   if (leagueStatus === 'finished') {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.blockedScreen}>
-          <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
+          <TouchableOpacity onPress={goBack} style={styles.backButton}>
             <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
             <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
           </TouchableOpacity>
           <View style={styles.blockedCard}>
-            <Text style={styles.blockedEmoji}>🏁</Text>
+            <Icon name="flag-outline" size={48} color={colors.textMuted} />
             <Text style={[styles.blockedTitle, { color: colors.textPrimary }]}>La liguilla ha finalizado</Text>
             <Text style={[styles.blockedSubtitle, { color: colors.textMuted }]}>
               El período de registro de resultados ha terminado.
@@ -181,10 +193,18 @@ export default function LogAttemptScreen() {
     )
   }
 
+  // ── Formulario de registro ──
+  function goesResultLabel(goes: number): string {
+    if (goes === 0) return 'Sin encadenar'
+    if (goes === 1) return 'Flash'
+    if (goes >= 6) return '+5 pegues'
+    return `${goes} pegues`
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity onPress={() => router.replace(`/(app)/blocks/${id}`)} style={styles.backButton}>
+        <TouchableOpacity onPress={goBack} style={styles.backButton}>
           <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
           <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
         </TouchableOpacity>
@@ -194,30 +214,23 @@ export default function LogAttemptScreen() {
 
         {existingAttempt ? (
           <View style={[styles.lockedCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={styles.lockedIcon}>🔒</Text>
+            <Icon name="lock-closed-outline" size={32} color={colors.textMuted} />
             <Text style={[styles.lockedTitle, { color: colors.textPrimary }]}>Resultado ya registrado</Text>
             <Text style={[styles.lockedText, { color: colors.textSecondary }]}>
-              Solo se puede registrar un resultado por bloque.{'\n'}
-              Una vez guardado no se puede modificar.
+              Solo se puede registrar un resultado por bloque.{'\n'}Una vez guardado no se puede modificar.
             </Text>
-            <View style={[styles.lockedResult, { backgroundColor: colors.background }]}>
-              <Text style={[styles.lockedResultLabel, { color: colors.textMuted }]}>Tu resultado:</Text>
+            <View style={[styles.lockedResult, { backgroundColor: colors.surfaceAlt }]}>
+              <Text style={[styles.lockedResultLabel, { color: colors.textMuted }]}>Tu resultado</Text>
               <Text style={[styles.lockedResultValue, { color: colors.primary }]}>
-                {existingAttempt.number_of_goes === 0
-                  ? 'Sin encadenar'
-                  : existingAttempt.number_of_goes === 1
-                  ? '⚡ Flash'
-                  : existingAttempt.number_of_goes >= 6
-                  ? '+5 pegues'
-                  : `${existingAttempt.number_of_goes} pegues`}
+                {goesResultLabel(existingAttempt.number_of_goes)}
               </Text>
             </View>
             <TouchableOpacity
               style={[styles.backFullButton, { borderColor: colors.border }]}
-              onPress={() => router.replace(`/(app)/blocks/${id}`)}
+              onPress={goBack}
               activeOpacity={0.8}
             >
-              <Text style={[styles.backFullButtonText, { color: colors.textSecondary }]}>← Volver al bloque</Text>
+              <Text style={[styles.backFullButtonText, { color: colors.textSecondary }]}>Volver al bloque</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -262,11 +275,10 @@ export default function LogAttemptScreen() {
               disabled={saving}
               activeOpacity={0.8}
             >
-              {saving ? (
-                <ActivityIndicator color={colors.textInverse} />
-              ) : (
-                <Text style={[styles.saveButtonText, { color: colors.textInverse }]}>💾 Guardar resultado</Text>
-              )}
+              {saving
+                ? <ActivityIndicator color={colors.textInverse} />
+                : <Text style={[styles.saveButtonText, { color: colors.textInverse }]}>Guardar resultado</Text>
+              }
             </TouchableOpacity>
           </>
         )}
@@ -277,14 +289,13 @@ export default function LogAttemptScreen() {
 
 const styles = StyleSheet.create({
   container:          { flex: 1 },
-  centered:           { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  centered:           { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   scroll:             { padding: spacing.lg, gap: spacing.lg },
   backButton:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.xs },
   backText:           { fontSize: typography.size.md },
   title:              { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
   blockName:          { fontSize: typography.size.lg, marginTop: -spacing.sm },
   lockedCard:         { borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center', gap: spacing.md, borderWidth: 1 },
-  lockedIcon:         { fontSize: 40 },
   lockedTitle:        { fontSize: typography.size.xl, fontWeight: typography.weight.bold, textAlign: 'center' },
   lockedText:         { fontSize: typography.size.sm, textAlign: 'center', lineHeight: 20 },
   lockedResult:       { borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, alignItems: 'center', gap: spacing.xs, width: '100%' },
@@ -304,7 +315,6 @@ const styles = StyleSheet.create({
   errorCardText:      { fontSize: typography.size.sm, flex: 1 },
   blockedScreen:      { flex: 1, padding: spacing.lg },
   blockedCard:        { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
-  blockedEmoji:       { fontSize: 64 },
   blockedTitle:       { fontSize: typography.size.xl, fontWeight: typography.weight.extrabold, textAlign: 'center' },
-  blockedSubtitle:    { fontSize: typography.size.md, textAlign: 'center', lineHeight: 22 },
+  blockedSubtitle:    { fontSize: typography.size.md, textAlign: 'center', lineHeight: 22, color: 'inherit' },
 })

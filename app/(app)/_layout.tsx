@@ -21,10 +21,10 @@ export default function AppLayout() {
 
     const currentPath = segments.join('/')
 
-    // Rutas exclusivas de GYM — redirigir a usuarios
-    const gymOnlyPaths = ['(app)/gym']
-    const isOnGymRoute = gymOnlyPaths.some(p => currentPath.includes(p))
-    if (isOnGymRoute && isUser) {
+    // Home del GYM — solo accesible para cuentas gym
+    // OJO: /(app)/gym/[id] es el perfil público, accesible para todos
+    const isOnGymHome = currentPath === '(app)/gym'
+    if (isOnGymHome && isUser) {
       router.replace('/(app)')
       return
     }

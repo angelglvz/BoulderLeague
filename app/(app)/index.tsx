@@ -3,7 +3,7 @@ import {
   ActivityIndicator, Modal, Image, ScrollView,
   TextInput,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession, useProfile } from '../../hooks'
 import { supabase } from '../../lib/supabase'
@@ -97,7 +97,10 @@ export default function HomeScreen() {
     }
   }, [user])
 
-  useEffect(() => { fetchLeagues(); fetchFavorites() }, [fetchLeagues, fetchFavorites])
+  useFocusEffect(useCallback(() => {
+    fetchLeagues()
+    fetchFavorites()
+  }, [fetchLeagues, fetchFavorites]))
 
   // ── Buscar rocódromos ──
   const searchGyms = useCallback(async (q: string) => {
@@ -273,7 +276,7 @@ export default function HomeScreen() {
                 <GymCard
                   key={gym.id}
                   gym={gym}
-                  isFavorite={favorites.has(gym.id)}
+                  isFavorite={showSearchResults ? favorites.has(gym.id) : true}
                   onToggleFavorite={() => toggleFavorite(gym)}
                   onPress={() => router.push(`/(app)/gym/${gym.id}` as any)}
                 />

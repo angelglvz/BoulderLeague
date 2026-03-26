@@ -596,7 +596,7 @@ export type Database = {
     }
     Enums: {
       account_type: "user" | "gym"
-      block_difficulty: "novato" | "medio" | "avanzado" | "experimentado" | "profesional"
+      block_difficulty: "principiante" | "novato" | "medio" | "avanzado" | "experimentado" | "elite" | "profesional"
       block_owner_type: "gym" | "user"
       attempt_result: "flash" | "completed" | "not_completed"
       friendship_status: "pending" | "accepted"
@@ -737,7 +737,7 @@ export const Constants = {
   public: {
     Enums: {
       account_type: ["user", "gym"] as const,
-      block_difficulty: ["novato", "medio", "avanzado", "experimentado", "profesional"] as const,
+      block_difficulty: ["principiante", "novato", "medio", "avanzado", "experimentado", "elite", "profesional"] as const,
       block_owner_type: ["gym", "user"] as const,
       attempt_result: ["flash", "completed", "not_completed"] as const,
       friendship_status: ["pending", "accepted"] as const,

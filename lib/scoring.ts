@@ -42,11 +42,13 @@ export function calcBasePoints(result: AttemptResult, numberOfGoes: number): num
 /** Bonus aditivo según dificultad */
 export function calcDifficultyBonus(difficulty: BlockDifficulty): number {
   const bonuses: Record<BlockDifficulty, number> = {
-    novato:        0,
-    medio:         1,
-    avanzado:      2,
-    experimentado: 3,
-    profesional:   4,
+    principiante:  0,
+    novato:        1,
+    medio:         2,
+    avanzado:      3,
+    experimentado: 4,
+    elite:         5,
+    profesional:   6,
   }
   return bonuses[difficulty] ?? 0
 }
@@ -75,10 +77,12 @@ export const RESULT_LABELS: Record<AttemptResult, string> = {
 }
 
 export const DIFFICULTY_LABELS: Record<BlockDifficulty, string> = {
+  principiante:  'Principiante',
   novato:        'Novato',
   medio:         'Medio',
   avanzado:      'Avanzado',
   experimentado: 'Experimentado',
+  elite:         'Élite',
   profesional:   'Profesional',
 }
 
@@ -88,3 +92,27 @@ export function resultEmoji(result: AttemptResult): string {
   if (result === 'completed') return '✓'
   return '—'
 }
+
+// ── Helpers para el formulario de registro de intentos ──
+
+/** Número de pegues: 0 = sin encadenar, 1 = flash, 2-5 = pegues, 6 = +5 */
+export type Goes = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
+export const GOES_LABELS: Record<Goes, string> = {
+  0: 'Sin encadenar',
+  1: 'Flash',
+  2: '2 pegues',
+  3: '3 pegues',
+  4: '4 pegues',
+  5: '5 pegues',
+  6: '+5 pegues',
+}
+
+/** Convierte el number_of_goes de la BD al tipo Goes del formulario */
+export function goesFromDB(numberOfGoes: number): Goes {
+  if (numberOfGoes === 0) return 0
+  if (numberOfGoes === 1) return 1
+  if (numberOfGoes >= 6) return 6
+  return numberOfGoes as Goes
+}
+
