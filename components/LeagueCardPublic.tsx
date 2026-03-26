@@ -22,6 +22,7 @@ interface Props {
   participantCount?: number
   currentUserId?: string | null
   isParticipant?: boolean
+  isGymAccount?: boolean
   onJoined?: () => void
   onOpenCodeModal?: (leagueId: string) => void
 }
@@ -43,6 +44,7 @@ export function LeagueCardPublic({
   participantCount = 0,
   currentUserId,
   isParticipant = false,
+  isGymAccount = false,
   onJoined,
   onOpenCodeModal,
 }: Props) {
@@ -64,6 +66,9 @@ export function LeagueCardPublic({
   }
 
   function renderAction() {
+    // Los rocódromos no pueden participar
+    if (isGymAccount) return null
+
     if (isParticipant) {
       return (
         <View style={[styles.joinedBadge, { backgroundColor: colors.successLight }]}>

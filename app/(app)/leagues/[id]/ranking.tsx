@@ -101,18 +101,30 @@ export default function RankingScreen() {
     const diffMap: Record<string, string | null> = {}
     blocks.forEach(b => { diffMap[b.id] = b.difficulty })
 
-    // 2. Participantes
-    const { data: participants } = await supabase
+    // 2. Detectar si es liguilla de GYM (el creador es cuenta gym)
+    const { data: creatorProfile } = await supabase
+      .from('profiles')
+      .select('account_type')
+      .eq('id', leagueData.creator_id)
+      .single()
+    const isGymLeague = creatorProfile?.account_type === 'gym'
+
+    // 3. Participantes (excluir el creador si es GYM — no compite en su propia liguilla)
+    const participantsQuery = supabase
       .from('league_participants')
       .select('user_id, users(name)')
       .eq('league_id', leagueData.id)
+
+    const { data: participants } = isGymLeague
+      ? await participantsQuery.neq('user_id', leagueData.creator_id)
+      : await participantsQuery
 
     if (!participants || participants.length === 0) {
       setRanking([])
       return
     }
 
-    // 3. Intentos de todos los participantes en estos bloques
+    // 4. Intentos de todos los participantes en estos bloques
     const { data: attempts } = await supabase
       .from('attempts')
       .select('user_id, block_id, number_of_goes, score')
@@ -124,7 +136,7 @@ export default function RankingScreen() {
       if (attemptsMap[a.user_id]) attemptsMap[a.user_id]!.push(a)
     })
 
-    // 4. Construir entradas de ranking
+    // 5. Construir entradas de ranking
     const entries: Omit<RankingEntry, 'position'>[] = participants.map(p => {
       const userAttempts = attemptsMap[p.user_id] ?? []
       const completed = userAttempts.filter(a => a.number_of_goes >= 1)

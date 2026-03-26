@@ -45,6 +45,7 @@ export default function HomeScreen() {
   const [gymQuery, setGymQuery] = useState('')
   const [gymResults, setGymResults] = useState<Gym[]>([])
   const [gymSearchLoading, setGymSearchLoading] = useState(false)
+  const [gymInputFocused, setGymInputFocused] = useState(false)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [favoriteGyms, setFavoriteGyms] = useState<Gym[]>([])
   const [achievementPoints, setAchievementPoints] = useState<number | null>(null)
@@ -69,56 +70,89 @@ export default function HomeScreen() {
       setLeagues(all.filter(l => !l.end_date || new Date(l.end_date) >= new Date(sevenDaysAgo)))
     }
     setLoading(false)
-  }, [user])
+  }, [user?.id])
 
   // ── Fetch favoritos ──
   const fetchFavorites = useCallback(async () => {
-    if (!user) return
-    const { data } = await supabase
+    if (!user?.id) return
+
+    // 1. Obtener los IDs de gyms favoritos del usuario
+    const { data: favData, error: favError } = await supabase
       .from('gym_favorites')
-      .select('gym_id, profiles(id, name, gym_location)')
+      .select('gym_id')
       .eq('user_id', user.id)
-    if (data) {
-      const ids = new Set<string>()
-      const gyms: Gym[] = []
-      for (const row of data as any[]) {
-        if (row.profiles) {
-          ids.add(row.gym_id)
-          const { count } = await supabase
-            .from('blocks')
-            .select('id', { count: 'exact', head: true })
-            .eq('gym_id', row.gym_id)
-            .eq('is_active', true)
-          gyms.push({ ...row.profiles, activeBlocks: count ?? 0 })
-        }
-      }
-      setFavorites(ids)
-      setFavoriteGyms(gyms)
+
+    if (favError) {
+      console.warn('[fetchFavorites] error leyendo gym_favorites:', favError.message)
+      return
     }
-    // Cargar puntos de logros
+
+    const gymIds = (favData ?? []).map((r: any) => r.gym_id as string)
+
+    // Actualizar el Set de IDs siempre, aunque esté vacío
+    setFavorites(new Set(gymIds))
+
+    if (gymIds.length === 0) {
+      setFavoriteGyms([])
+      return
+    }
+
+    // 2. Obtener los perfiles de esos gyms (query explícita, sin depender de FK join)
+    const { data: gymData, error: gymError } = await supabase
+      .from('profiles')
+      .select('id, name, gym_location')
+      .in('id', gymIds)
+
+    if (gymError) {
+      console.warn('[fetchFavorites] error leyendo profiles:', gymError.message)
+      return
+    }
+
+    // 3. Contar bloques activos de cada gym
+    const withBlocks = await Promise.all((gymData ?? []).map(async (g: Gym) => {
+      const { count } = await supabase
+        .from('blocks')
+        .select('id', { count: 'exact', head: true })
+        .eq('gym_id', g.id)
+        .eq('is_active', true)
+      return { ...g, activeBlocks: count ?? 0 }
+    }))
+
+    setFavoriteGyms(withBlocks)
+
+    // 4. Cargar puntos de logros
     const { data: profileData } = await supabase
       .from('profiles')
       .select('achievement_points')
       .eq('id', user.id)
       .single()
     if (profileData) setAchievementPoints((profileData as any).achievement_points ?? 0)
-  }, [user])
+  }, [user?.id])
 
   useFocusEffect(useCallback(() => {
     fetchLeagues()
     fetchFavorites()
   }, [fetchLeagues, fetchFavorites]))
 
+  // Re-cargar datos cuando el usuario cambia (ej: después de login/logout).
+  // useFocusEffect sólo se dispara en eventos de foco; este useEffect garantiza
+  // que los datos se cargan aunque la pantalla ya estuviera en foco.
+  useEffect(() => {
+    fetchLeagues()
+    fetchFavorites()
+  }, [fetchLeagues, fetchFavorites])
+
   // ── Buscar rocódromos ──
   const searchGyms = useCallback(async (q: string) => {
     setGymSearchLoading(true)
+    const isEmpty = !q.trim()
     let query = supabase
       .from('profiles')
       .select('id, name, gym_location')
       .eq('account_type', 'gym')
       .order('name')
-    if (q.trim()) query = query.or(`name.ilike.%${q}%,gym_location.ilike.%${q}%`)
-    const { data } = await query.limit(20)
+    if (!isEmpty) query = query.or(`name.ilike.%${q}%,gym_location.ilike.%${q}%`)
+    const { data } = await query.limit(isEmpty ? 3 : 20)
     if (data) {
       const withBlocks = await Promise.all((data as Gym[]).map(async g => {
         const { count } = await supabase
@@ -134,7 +168,11 @@ export default function HomeScreen() {
   function handleGymSearch(text: string) {
     setGymQuery(text)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (!text.trim()) { setGymResults([]); return }
+    if (!text.trim()) {
+      // Sin texto pero con foco → cargar sugerencias (3 rocódromos)
+      debounceRef.current = setTimeout(() => searchGyms(''), 100)
+      return
+    }
     debounceRef.current = setTimeout(() => searchGyms(text), 300)
   }
 
@@ -184,8 +222,8 @@ export default function HomeScreen() {
   }
 
   // Lista a mostrar en la sección rocódromos:
-  // si hay búsqueda activa → resultados de búsqueda; si no → favoritos
-  const showSearchResults = gymQuery.trim().length > 0
+  // si hay búsqueda activa o el input está enfocado → resultados/sugerencias; si no → favoritos
+  const showSearchResults = gymInputFocused || gymQuery.trim().length > 0
   const gymsToShow = showSearchResults ? gymResults : favoriteGyms
 
   return (
@@ -264,7 +302,14 @@ export default function HomeScreen() {
 
         {/* ── Sección: Rocódromos ── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Rocódromos</Text>
+          <View style={styles.sectionRow}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Rocódromos</Text>
+            {showSearchResults && (
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+                {gymQuery.trim() ? 'Resultados' : 'Sugerencias'}
+              </Text>
+            )}
+          </View>
 
           {/* Buscador inline */}
           <View style={[styles.searchBar, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
@@ -275,28 +320,52 @@ export default function HomeScreen() {
               placeholderTextColor={colors.textMuted}
               value={gymQuery}
               onChangeText={handleGymSearch}
+              onFocus={() => {
+                setGymInputFocused(true)
+                if (!gymQuery.trim()) searchGyms('')
+              }}
+              onBlur={() => {
+                // Delay para permitir que el tap en una GymCard complete
+                // antes de que la lista cambie de sugerencias a favoritos
+                setTimeout(() => setGymInputFocused(false), 150)
+              }}
               autoCorrect={false}
               autoCapitalize="none"
             />
             {gymQuery.length > 0 && (
-              <TouchableOpacity onPress={() => { setGymQuery(''); setGymResults([]) }}>
+              <TouchableOpacity onPress={() => { setGymQuery(''); searchGyms('') }}>
                 <Icon name="close-circle-outline" size={16} color={colors.textMuted} />
               </TouchableOpacity>
             )}
           </View>
 
           {/* Resultados / Favoritos */}
-          {gymSearchLoading ? (
+          {/* Sólo mostrar spinner cuando estamos en modo búsqueda/sugerencias,
+              NUNCA ocultar los favoritos por una búsqueda en segundo plano */}
+          {(gymSearchLoading && showSearchResults) ? (
             <ActivityIndicator color={colors.primary} style={styles.loader} />
           ) : gymsToShow.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Icon name="business-outline" size={40} color={colors.textMuted} />
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                {showSearchResults ? 'No se encontraron rocódromos' : 'Aún no tienes rocódromos favoritos'}
-              </Text>
-              <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-                {showSearchResults ? 'Prueba con otro nombre o ciudad' : 'Busca un rocódromo y márcalo con ⭐'}
-              </Text>
+              {(() => {
+                const hasText = gymQuery.trim().length > 0
+                const emptyTitle = hasText
+                  ? 'No se encontraron rocódromos'
+                  : showSearchResults
+                    ? 'Cargando sugerencias...'
+                    : 'Aún no tienes rocódromos favoritos'
+                const emptySub = hasText
+                  ? 'Prueba con otro nombre o ciudad'
+                  : showSearchResults
+                    ? ''
+                    : 'Busca un rocódromo y márcalo con ⭐'
+                return (
+                  <>
+                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{emptyTitle}</Text>
+                    {emptySub ? <Text style={[styles.emptySub, { color: colors.textMuted }]}>{emptySub}</Text> : null}
+                  </>
+                )
+              })()}
             </View>
           ) : (
             <View style={styles.gymList}>
@@ -391,7 +460,9 @@ const styles = StyleSheet.create({
   quickBtnText: { fontSize: typography.size.xs, fontWeight: typography.weight.bold, color: '#fff', textAlign: 'center' },
   quickBtnTextAlt: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold, textAlign: 'center' },
   section: { marginBottom: spacing.xl, gap: spacing.sm },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionHint: { fontSize: typography.size.xs },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     borderRadius: radius.lg, borderWidth: 1,

@@ -55,9 +55,14 @@
 | Fase 2 — Home diferenciado por tipo | ✅ Completada |
 | Fase 3 — Bloques de Gym | ✅ Completada |
 | Fase 4 — Mejoras registro, scoring, valoraciones y stats | ✅ Completada |
-| Fase 5 — Rankings del Gym | ⏭️ Omitida (implementación actual válida) |
-| Fase 6 — Achievements | 🔲 Pendiente |
-| Fase 7 — Liguillas V2 | 🔲 Pendiente |
+| Fase 5 — Rankings del Gym | ⏭️ Omitida (implementación actual válida) → **movida a PLAN_V2.0.md** |
+| Fase 6 — Achievements + Ranking Global + Muro | ➡️ **Movida a PLAN_V2.0.md** |
+| Fase 7 — Liguillas V2 | ✅ Completada (7.1–7.7) |
+| Fase 9 — Capa social (amigos + feed) | ➡️ **Movida a PLAN_V2.0.md** |
+| Fase 10 — Dashboard B2B | ➡️ **Movida a PLAN_V2.0.md** |
+| Fase 11 — Notificaciones push (bonus) | ➡️ **Movida a PLAN_V2.0.md** |
+
+> 📄 **Las fases pendientes (5, 6, 9, 10, 11) están documentadas en [`PLAN_V2.0.md`](./PLAN_V2.0.md).**
 
 > **Notas de implementación real (vs. plan original):**
 > - 1.1: Los botones de tipo se movieron al formulario de registro (tabs), no a welcome
@@ -71,6 +76,11 @@
 >   - 4.2: Scoring V2 aplicado — base points actualizados (2→7, +5→2) y 7 niveles de bonus (0/2/3/4/8/9/10)
 >   - 4.3: `components/StarRating.tsx` creado; rating UPSERT en `block_ratings`; comentario guardado en `block_comments` desde log-attempt; lectura del comentario propio en detalle de bloque
 >   - 4.4: `app/(app)/stats/index.tsx` con estadísticas globales (dificultad/pegues/estilo); tab "Mis stats" en gym/[id].tsx con stats filtradas por gym; acceso rápido desde home de usuario
+> - **Fase 7 en progreso — 2026-03-26:**
+>   - 7.1–7.5: implementados según el plan (ver notas al pie de la Fase 7)>   - 7.6: implementado — ver notas al pie de la Fase 7
+>   - 7.7: implementado — ver notas al pie de la Fase 7
+>   - **Fix extra (no planificado):** ordenación de bloques en liguilla — los bloques más recientes aparecen primero tanto en liguillas de GYM (orden por `league_blocks.created_at DESC`) como en liguillas de USER (orden por `blocks.created_at DESC`)
+>   - **Fix extra (no planificado):** pantalla de estadísticas mensuales del GYM y corrección de bug RLS en `attempts` — ver notas al pie de la Fase 7
 
 ---
 
@@ -1835,11 +1845,61 @@ En `app/(app)/index.tsx`:
 ## 🔗 Fase 7 — Liguillas V2
 
 > Dependencia: Fases 0, 3 completadas
-> Estado: 🔲 Pendiente
+> Estado: 🔄 En progreso — **7.1 al 7.6 completados** · 7.7 pendiente
 
 ---
 
-### Reglas de negocio clave
+> ### 📋 Notas de implementación Fase 7 (2026-03-26)
+>
+> **7.1 ✅** — `leagues/create.tsx` refactorizado. Funciona para ambos tipos de cuenta.
+>
+> **7.2 ✅** — `leagues/[id].tsx` diferencia correctamente vista GYM (gestión de bloques antes de iniciar, modo lectura después) y vista USER.
+>
+> **7.2.1 ✅** — Sección "Mis liguillas" en `gym/index.tsx` con `LeagueCard` y botón "Nueva".
+>
+> **7.3 ✅** — `leagues/[id]/select-blocks.tsx` creado: buscador por texto + filtros de dificultad/estilo/sección + botón Añadir/Añadido.
+>
+> **7.4 ✅** — `gym/blocks/add.tsx` acepta parámetro `leagueId` opcional; al guardar inserta en `league_blocks`. Banner informativo visible cuando `leagueId` está presente.
+>
+> **7.5 ✅** — Flujo USER sin cambios respecto a V1. Trigger `trg_deactivate_user_league_blocks` pendiente de aplicar en Supabase (SQL en `docs/PLAN_V2.md § 7.5`).
+>
+> **7.6 ✅** — Implementado 2026-03-26:
+> - `leagues/join.tsx`: cuentas GYM ven pantalla bloqueada "Los rocódromos no pueden participar en liguillas"
+> - `components/LeagueCardPublic.tsx`: nueva prop `isGymAccount`; si `true`, no se renderizan botones de unirse
+> - `gym/[id].tsx`: pasa `isGymAccount={isGym}` a todos los `LeagueCardPublic`
+> - `leagues/[id]/ranking.tsx`: en `buildRanking` se detecta si es liguilla de GYM consultando el perfil del creador; si lo es, se filtra el creador de la lista de participantes con `.neq('user_id', creator_id)`
+>
+> **Fix extra ✅ — Ordenación de bloques en liguilla:**
+> - Liguillas GYM: `league_blocks` se ordena por `created_at DESC` y se preserva ese orden al hidratar los bloques (el último bloque vinculado aparece primero)
+> - Liguillas USER: query con `order('created_at', { ascending: false })` (el bloque creado más recientemente aparece primero)
+> - Archivo: `leagues/[id].tsx`
+>
+> **Fix extra ✅ — Bug RLS `attempts` + pantalla de estadísticas del GYM:**
+> - **Bug detectado:** la política `attempts_select_own` (`USING (user_id = auth.uid())`) impedía que el GYM leyera cualquier intento ajeno, haciendo que el contador semanal siempre mostrase 0
+> - **Migración:** `supabase/migrations/fix_gym_stats_rls.sql` — añade dos nuevas políticas:
+>   - `blocks_select_gym_own`: el GYM puede leer todos sus bloques (activos e inactivos) → necesario para datos históricos
+>   - `attempts_select_gym_owner`: el GYM puede leer intentos en sus bloques
+> - **`gym/index.tsx`:** stat card "Intentos esta semana" → **"Usuarios activos esta semana"** (usuarios únicos con ≥1 bloque resuelto desde el lunes); helper `getLastMonday()`; nuevo botón de acceso rápido "Estadísticas"
+> - **`gym/stats.tsx`** (nueva pantalla `/(app)/gym/stats`):
+>   - Selector de mes ← Mes Año → (últimos 12 meses, no permite navegar al futuro)
+>   - 3 KPIs: Usuarios activos · Bloques resueltos · Intentos totales — cada uno con delta `+X%` / `-X%` vs mes anterior
+>   - Gráfico de evolución de los últimos 6 meses (barras interactivas: toca una para ver ese mes)
+>   - Desglose por dificultad (barras horizontales proporcionales con punto de color)
+>   - Toda la agregación es **client-side** con una sola carga de 12 meses de datos — sin queries adicionales al navegar entre meses
+>   - ⚠️ **Requiere ejecutar `fix_gym_stats_rls.sql` en Supabase** antes de que los datos sean visibles
+
+> **7.7 ✅ — QR de liguilla + compartir (2026-03-26):**
+> - Dependencias instaladas: `react-native-svg` + `react-native-qrcode-svg`
+> - `components/LeagueQRModal.tsx` (nuevo): modal de pantalla completa con QR, nombre de liguilla, código de acceso (si privada), botón "Compartir" (usa `Share` API nativa en móvil o `navigator.share` / portapapeles en web) y botón "Copiar enlace"
+> - Deep link codificado: `climbify://join?league=<id>` (pública) / `climbify://join?league=<id>&code=<code>` (privada)
+> - `leagues/[id].tsx` actualizado: sección de compartir rediseñada con 3 elementos:
+>   1. Código de acceso con "Toca para copiar" (solo si `access_code` existe)
+>   2. Botón "Mostrar QR" → abre `LeagueQRModal`
+>   3. Botón "Compartir enlace" → `Share.share` (móvil) / Clipboard (web)
+> - El botón "Enviarme el PDF" (Edge Function + Resend) queda como mejora futura
+> - ⚠️ Exportado en `components/index.ts`
+
+---
 
 #### Liguilla de GYM
 - El rocódromo **crea** la liguilla y **gestiona** sus bloques — nunca participa
@@ -1860,7 +1920,7 @@ En `app/(app)/index.tsx`:
 
 ---
 
-### 7.1 — Creación de liguilla (ambos tipos)
+### ✅ 7.1 — Creación de liguilla (ambos tipos)
 
 Refactor `app/(app)/leagues/create.tsx`:
 - Formulario común: nombre, premio, privada/pública, código (si privada), fechas, máx. participantes
@@ -1872,7 +1932,7 @@ Refactor `app/(app)/leagues/create.tsx`:
 
 ---
 
-### 7.2 — Detalle de liguilla (vista creador GYM)
+### ✅ 7.2 — Detalle de liguilla (vista creador GYM)
 
 Refactor `app/(app)/leagues/[id].tsx` para el flujo GYM:
 
@@ -1891,7 +1951,20 @@ Refactor `app/(app)/leagues/[id].tsx` para el flujo GYM:
 
 ---
 
-### 7.3 — Buscador de bloques del catálogo (GYM)
+### ✅ 7.2.1 — Liguillas del gym visibles desde el home
+
+En `app/(app)/gym/index.tsx`, nueva sección **"Mis liguillas"** entre los accesos rápidos y los bloques activos:
+- Carga todas las liguillas donde `creator_id = user.id` (todos los estados: sin iniciar, activa, finalizada)
+- Usa el componente `LeagueCard` existente (ya muestra estado, fechas y cuenta atrás)
+- Botón **"Nueva"** en el header de la sección (acceso rápido a `leagues/create`)
+- Estado vacío si aún no hay liguillas creadas
+- Se refresca con `useFocusEffect` junto con el resto de datos del home
+
+**Archivos:** `app/(app)/gym/index.tsx`
+
+---
+
+### ✅ 7.3 — Buscador de bloques del catálogo (GYM)
 
 Crear `app/(app)/leagues/[id]/select-blocks.tsx` o implementar como modal/bottom-sheet dentro del detalle:
 
@@ -1908,7 +1981,7 @@ Crear `app/(app)/leagues/[id]/select-blocks.tsx` o implementar como modal/bottom
 
 ---
 
-### 7.4 — Crear bloque desde una liguilla (GYM)
+### ✅ 7.4 — Crear bloque desde una liguilla (GYM)
 
 Adaptar `app/(app)/gym/blocks/add.tsx` para aceptar un parámetro `leagueId` opcional:
 
@@ -1924,7 +1997,7 @@ Adaptar `app/(app)/gym/blocks/add.tsx` para aceptar un parámetro `leagueId` opc
 
 ---
 
-### 7.5 — Detalle de liguilla (vista creador USER)
+### ✅ 7.5 — Detalle de liguilla (vista creador USER)
 
 Flujo sin cambios respecto a V1 salvo:
 - Bloques creados con `owner_type='user'`
@@ -1960,7 +2033,7 @@ CREATE TRIGGER trg_deactivate_user_league_blocks
 
 ---
 
-### 7.6 — Proteger participación en liguillas
+### ✅ 7.6 — Proteger participación en liguillas
 
 - Solo cuentas `USER` pueden unirse como participantes
 - Si es GYM: mostrar mensaje "Los rocódromos no pueden participar en liguillas"
@@ -1970,7 +2043,7 @@ CREATE TRIGGER trg_deactivate_user_league_blocks
 
 ---
 
-### 7.7 — QR de liguilla + compartir
+### ✅ 7.7 — QR de liguilla + compartir
 
 En el detalle de liguilla:
 - Botón **"Mostrar QR"** → modal con QR a pantalla completa
