@@ -55,9 +55,14 @@
 | Fase 2 — Home diferenciado por tipo | ✅ Completada |
 | Fase 3 — Bloques de Gym | ✅ Completada |
 | Fase 4 — Mejoras registro, scoring, valoraciones y stats | ✅ Completada |
-| Fase 5 — Rankings del Gym | ⏭️ Omitida (implementación actual válida) |
-| Fase 6 — Achievements | 🔲 Pendiente |
+| Fase 5 — Rankings del Gym | ⏭️ Omitida (implementación actual válida) → **movida a PLAN_V2.0.md** |
+| Fase 6 — Achievements + Ranking Global + Muro | ➡️ **Movida a PLAN_V2.0.md** |
 | Fase 7 — Liguillas V2 | ✅ Completada (7.1–7.7) |
+| Fase 9 — Capa social (amigos + feed) | ➡️ **Movida a PLAN_V2.0.md** |
+| Fase 10 — Dashboard B2B | ➡️ **Movida a PLAN_V2.0.md** |
+| Fase 11 — Notificaciones push (bonus) | ➡️ **Movida a PLAN_V2.0.md** |
+
+> 📄 **Las fases pendientes (5, 6, 9, 10, 11) están documentadas en [`PLAN_V2.0.md`](./PLAN_V2.0.md).**
 
 > **Notas de implementación real (vs. plan original):**
 > - 1.1: Los botones de tipo se movieron al formulario de registro (tabs), no a welcome
