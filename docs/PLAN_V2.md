@@ -53,7 +53,7 @@
 | Fase 0 — Reset DB y schema V2 | ✅ Completada |
 | Fase 1 — Registro con tipo de cuenta | ✅ Completada |
 | Fase 2 — Home diferenciado por tipo | ✅ Completada |
-| Fase 3 — Bloques de Gym | 🔲 Pendiente |
+| Fase 3 — Bloques de Gym | ✅ Completada |
 | Fase 4 en adelante | 🔲 Pendiente |
 
 > **Notas de implementación real (vs. plan original):**
@@ -62,6 +62,7 @@
 > - 2.1: Home USER tiene buscador de rocódromos integrado con estrella de favorito inline (sin navegar a pantalla separada)
 > - 2.5/2.6: El buscador vive directamente en el home del usuario, no en pantalla separada
 > - RLS: Las políticas no estaban aplicadas en producción — se corrigió con `fix_all_rls_policies.sql`
+> - **Fase 3 completada 2026-03-26** — ver notas detalladas al pie de la sección Fase 3
 
 ---
 
@@ -785,81 +786,130 @@ Crear `components/JoinLeagueModal.tsx`:
 
 ---
 
-## 🧱 Fase 3 — Bloques de Gym (tracking continuo)
+## 🧱 Fase 3 — Bloques de Gym (tracking continuo) ✅ COMPLETADA
 
+> Completada: 2026-03-26
 > Dependencia: Fase 2 completada
-> Estimación: 5-6h
 
-### 3.1 — Crear bloque (cuenta GYM)
+### 3.1 — Crear bloque (cuenta GYM) ✅
 
-Crear `app/(app)/gym/blocks/add.tsx`:
-- Abrir cámara directamente al entrar
-- Campos: identificador, dificultad, color (opcional), sector (opcional)
-- Subir foto a Storage → insertar en `blocks` con `owner_type='gym'`, `gym_id=auth.uid()`
-- Feedback visual al guardar
-- Si el gym tiene 99 bloques activos: advertencia **"Añadir este bloque desactivará el más antiguo"**
+**Implementación real:**
+- En móvil abre la cámara directamente; en web abre el selector de archivo
+- Si ya hay foto: en móvil aparece Alert "Cámara / Galería"; en web va directo a galería
+- Campos: identificador, dificultad (7 niveles con punto de color), estilo (multiselección), sección (opcional)
+- **7 niveles de dificultad con color identificativo** (sin emojis):
+  - Principiante ● Gris · Novato ● Verde · Medio ● Azul · Avanzado ● Amarillo
+  - Experimentado ● Naranja · Élite ● Rojo · Profesional ● Morado
+- **Campo "Estilo" multiselección** (chips): Vertical, Placa, Desplome, Regletas, Romos, Talones, Empeines, Dinámicos
+  - Se almacena en columna `color` de la BD como lista separada por comas (sin migración adicional)
+- **Campo "Sección"** (renombrado desde "Sector" del plan original) — campo `sector` en BD
+- Se eliminó el campo "Color" del plan original
+- Advertencia si quedan ≤1 slot antes del límite de 100
+- **Migración BD requerida:** `ALTER TYPE block_difficulty ADD VALUE IF NOT EXISTS 'principiante'; ALTER TYPE block_difficulty ADD VALUE IF NOT EXISTS 'elite';`
+- Al guardar → recarga automática en el home del gym (useFocusEffect)
 
 **Archivos:** `app/(app)/gym/blocks/add.tsx`
 
-### 3.2 — Listado de bloques del gym (vista owner GYM)
+### 3.2 — Listado de bloques del gym (vista owner GYM) ✅
 
-Crear `app/(app)/gym/blocks/index.tsx`:
-- FlatList con `BlockCard` de los bloques activos del gym
-- **Filtros combinables:**
-  - Por dificultad: chips horizontales (Todos / Novato / Medio / Avanzado / Experimentado / Profesional)
-  - Por estado: Todos / Activos / Inactivos
-- Contador visible: **"X/100 bloques activos"** con barra de progreso
-- Botón ➕ para añadir nuevo bloque (deshabilitado si ≥100 activos con tooltip)
-- Swipe izquierda o botón 🗑️ para desactivar bloque (`is_active = false`)
-- Botón para reactivar bloques inactivos (si hay hueco, i.e., activos < 100)
+**Implementación real:**
+- Tabs Activos / Inactivos (en lugar de chips de estado)
+- **Filtros via modal bottom-sheet** (icono `options-outline` en header con badge numérico):
+  - Dificultad: 7 niveles con punto de color, multiselección
+  - Estilo: 8 opciones multiselección
+  - Sección: dinámica según los bloques del gym (solo aparece si hay bloques con sección)
+- Filtrado en cliente (sin nueva petición a Supabase)
+- Botón desactivar (eye-off) / reactivar (refresh) por bloque con Alert de confirmación
+- Contador `X/100 activos` con barra de progreso
+- Botón `+` en header (deshabilitado si ≥100 activos)
 
 **Archivos:** `app/(app)/gym/blocks/index.tsx`
 
-### 3.3 — Listado de bloques del gym (vista USER / pública)
+### 3.3 — Listado de bloques del gym (vista USER / pública) ✅
 
-Crear `app/(app)/gyms/[id]/blocks.tsx`:
-- FlatList de bloques activos del gym seleccionado
-- **Filtros combinables:**
-  - Por dificultad: chips horizontales (Todos / Novato / Medio / Avanzado / Experimentado / Profesional)
-  - Por estado personal: **Todos** / **Pendientes** (sin intento) / **Realizados** (con intento)
-- Cada `BlockCard` muestra el resultado propio si existe (flash ⚡ / completado ✓ / sin hacer)
-- Al pulsar → detalle del bloque con botón "Registrar intento"
+**Implementación real:**
+- Los bloques se muestran **directamente en el tab "Info" del perfil del gym** (no en pantalla separada)
+- Mismo sistema de filtros modal que la vista owner, más filtro adicional **"Estado"**:
+  - Todos / Sin encadenar (no registrado) / Encadenados (≥1 pegue) / Intentados (registrado sin encadenar)
+- Cada `BlockCard` muestra el resultado propio si existe
+- La pantalla `app/(app)/gyms/[id]/blocks.tsx` existe pero el flujo principal es desde `gym/[id].tsx`
 
-**Archivos:** `app/(app)/gyms/[id]/blocks.tsx`
+**Archivos:** `app/(app)/gym/[id].tsx`, `app/(app)/gyms/[id]/blocks.tsx`
 
-### 3.4 — Detalle de bloque (vista pública)
+### 3.4 — Detalle de bloque (vista pública) ✅
 
-Refactor `app/(app)/blocks/[id]/index.tsx`:
-- Foto del bloque (pantalla completa)
-- Dificultad, sector, fecha de creación
-- Media de estrellas (cuando existan ratings)
-- Nº de intentos totales
-- Resultado propio del usuario autenticado (si existe)
-- **Botón "Registrar intento"** (solo cuentas USER)
-- **Botón "Editar"** (solo owner del bloque y si no hay liguilla activa)
+**Implementación real:**
+- Foto a ancho completo
+- Badges de dificultad, estilo y sección
+- Resultado propio del usuario: solo texto en grande sin label ni puntos (ej: "Flash", "2 pegues")
+- Si no hay resultado: no se muestra ningún placeholder
+- **Botón "Resolver"** fijado al fondo de la pantalla (fuera del ScrollView, `position: absolute`)
+  - Solo visible para cuentas USER
+  - Deshabilitado si: ya registrado, liguilla inactiva, o no es usuario
+- **Regla de negocio implementada:**
+  - Bloques de gym (sin `league_id`): resolvibles desde el momento de creación
+  - Bloques de liguilla (`league_id != null`): solo cuando la liguilla está `in_progress`
+- Botón "Editar" solo para el owner del bloque
+- `useFocusEffect` para recargar el intento al volver de log-attempt
 
 **Archivos:** `app/(app)/blocks/[id]/index.tsx`
 
-### 3.5 — Editar bloque (owner)
+### 3.5 — Editar bloque (owner) ✅
 
-Refactor `app/(app)/blocks/[id]/edit.tsx`:
-- Editar foto, dificultad, color, sector (nunca el identificador)
+**Implementación real:**
+- Campos editables: foto, dificultad, estilo (campo `color`), sección (campo `sector`)
+- Verifica que el usuario es el owner antes de cargar
 - Solo disponible si `is_active = true`
-- Al guardar → `updated_at = NOW()`
 
 **Archivos:** `app/(app)/blocks/[id]/edit.tsx`
 
-### 3.6 — Desactivar bloque (soft delete) con límite de 100
+### 3.6 — Desactivar bloque (soft delete) con límite de 100 ✅
 
-Lógica de desactivación:
-- En lugar de `DELETE`, actualizar `is_active = false`
-- Alerta de confirmación: **"Este bloque se desactivará. Seguirá visible en el historial de los usuarios que lo escalaron."**
-- El trigger `trg_gym_block_limit` (definido en schema 0.1) desactiva automáticamente el más antiguo al llegar a 101
-- La UI del gym muestra el bloque desactivado automáticamente con una notificación: **"El bloque más antiguo se ha desactivado automáticamente para dar paso al nuevo"**
+**Implementación real:**
+- Soft delete con Alert de confirmación
+- Trigger `trg_gym_block_limit` en BD desactiva automáticamente el más antiguo al llegar a 101
+- Botón de reactivar disponible si activos < 100
 
 **Archivos:** `app/(app)/gym/blocks/index.tsx`, `app/(app)/gym/blocks/add.tsx`
 
+### 3.7 — Registro de intentos (bloques de gym) ✅
+
+> Implementado en esta fase como extensión de 3.4
+
+**Implementación real en `log-attempt.tsx`:**
+- Inicializa `leagueStatus = null`; si el bloque no tiene `league_id` se setea `'in_progress'` directamente sin consultar BD
+- Selector visual de número de pegues: 0 (Sin encadenar) / 1 (Flash) / 2 / 3 / 4 / 5 / +5
+- Campo `result` enviado al INSERT (`flash | completed | not_completed`) — obligatorio en el schema V2
+- `router.replace` hacia el detalle del bloque al guardar (no `router.back`) para evitar "GO_BACK not handled"
+- Todos los botones "Volver" usan `router.replace(`/(app)/blocks/${id}`)` por el mismo motivo
+- Añadidos a `lib/scoring.ts`: tipo `Goes`, `GOES_LABELS`, `goesFromDB`
+
+**Archivos:** `app/(app)/blocks/[id]/log-attempt.tsx`, `lib/scoring.ts`
+
+### 3.8 — Favoritos de gym (persistencia y UX) ✅
+
+> Implementado en esta fase como corrección de comportamiento
+
+**Implementación real:**
+- Los favoritos se persisten en `gym_favorites` (tabla BD, ya existente en schema V2)
+- `toggleFavorite` usa `upsert` con `onConflict: 'user_id,gym_id'` (no `insert`) para evitar 409
+- En el perfil del gym: estrella en el header superior derecho (`star` / `star-outline`)
+  - Solo visible para cuentas USER
+  - `useFocusEffect` independiente para cargar `isFavorite` siempre actualizado
+  - Actualización optimista del estado local con reversión si falla
+  - **Eliminado:** botón grande "Añadir a favoritos / En favoritos" del tab Info
+- En el home del usuario: `GymCard` muestra estrella rellena para favoritos, vacía en resultados de búsqueda
+
+**Archivos:** `app/(app)/gym/[id].tsx`, `app/(app)/index.tsx`, `components/GymCard.tsx`
+
+### Correcciones de navegación y layout ✅
+
+- `_layout.tsx`: guardia de rutas cambiada de `includes('(app)/gym')` a `=== '(app)/gym'` para que usuarios puedan acceder a `/(app)/gym/[id]` (perfil público del gym)
+- Home del escalador: `useEffect` → `useFocusEffect` para recargar favoritos y liguillas al volver de cualquier pantalla
+- Home del gym: `useEffect` → `useFocusEffect` para recargar bloques al volver de añadir bloque
+
 ---
+
 
 ## 🧗 Fase 4 — Registro de intentos V2 y scoring
 

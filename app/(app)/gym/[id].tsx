@@ -1,18 +1,33 @@
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, SafeAreaView,
+  ActivityIndicator, SafeAreaView, Modal, FlatList,
 } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
-import { useSession } from '../../../hooks'
-import { useProfile } from '../../../hooks'
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useSession, useProfile } from '../../../hooks'
 import { supabase } from '../../../lib/supabase'
 import { useTheme } from '../../../lib/ThemeContext'
 import { typography, spacing, radius } from '../../../constants'
-import { LeagueCardPublic, JoinLeagueModal, Icon } from '../../../components'
+import { LeagueCardPublic, JoinLeagueModal, Icon, BlockCard } from '../../../components'
 
 type Tab = 'info' | 'leagues' | 'ranking'
 type RankingPeriod = 'global' | 'month' | 'week'
+type PersonalFilter = 'all' | 'pending' | 'done' | 'unattempted'
+
+const DIFFICULTIES = [
+  { value: 'principiante', label: 'Principiante', color: '#AAAAAA' },
+  { value: 'novato',       label: 'Novato',       color: '#4CAF50' },
+  { value: 'medio',        label: 'Medio',        color: '#2196F3' },
+  { value: 'avanzado',     label: 'Avanzado',     color: '#FFC107' },
+  { value: 'experimentado',label: 'Experimentado',color: '#FF9800' },
+  { value: 'elite',        label: 'Élite',        color: '#F44336' },
+  { value: 'profesional',  label: 'Profesional',  color: '#9C27B0' },
+]
+
+const STYLES_OPTIONS = [
+  'Vertical', 'Placa', 'Desplome', 'Regletas',
+  'Romos', 'Talones', 'Empeines', 'Dinámicos',
+]
 
 interface GymProfile {
   id: string
@@ -66,7 +81,52 @@ export default function GymProfileScreen() {
   const [codeModalLeagueId, setCodeModalLeagueId] = useState<string | null>(null)
   const [favLoading, setFavLoading] = useState(false)
 
+  // ── Bloques del tab Info ──
+  const [blocks, setBlocks] = useState<any[]>([])
+  const [attempts, setAttempts] = useState<Record<string, any>>({})
+  const [blocksLoading, setBlocksLoading] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterDiffs, setFilterDiffs] = useState<Set<string>>(new Set())
+  const [filterStyles, setFilterStyles] = useState<Set<string>>(new Set())
+  const [filterSections, setFilterSections] = useState<Set<string>>(new Set())
+  const [filterPersonal, setFilterPersonal] = useState<PersonalFilter>('all')
+
   useEffect(() => { if (id) loadAll() }, [id, tab, rankPeriod])
+
+  // Cargar estado de favorito de forma independiente al entrar/volver a la pantalla
+  useFocusEffect(useCallback(() => {
+    if (!id || !user) return
+    supabase
+      .from('gym_favorites')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('gym_id', id)
+      .maybeSingle()
+      .then(({ data }) => setIsFavorite(!!data))
+  }, [id, user]))
+
+  async function loadBlocks() {
+    if (!id) return
+    setBlocksLoading(true)
+    const { data: blocksData } = await supabase
+      .from('blocks').select('*')
+      .eq('gym_id', id).eq('is_active', true)
+      .order('created_at', { ascending: false })
+
+    setBlocks(blocksData ?? [])
+
+    if (user && blocksData && blocksData.length > 0) {
+      const { data: attemptsData } = await supabase
+        .from('attempts').select('*').eq('user_id', user.id)
+        .in('block_id', blocksData.map((b: any) => b.id))
+      const map: Record<string, any> = {}
+      ;(attemptsData ?? []).forEach((a: any) => { map[a.block_id] = a })
+      setAttempts(map)
+    }
+    setBlocksLoading(false)
+  }
+
+  useFocusEffect(useCallback(() => { loadBlocks() }, [id, user]))
 
   async function loadAll() {
     setLoading(true)
@@ -89,16 +149,6 @@ export default function GymProfileScreen() {
       .eq('is_active', true)
 
     setGymProfile({ ...data, activeBlocks: count ?? 0 })
-
-    if (user) {
-      const { data: fav } = await supabase
-        .from('gym_favorites')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('gym_id', id)
-        .maybeSingle()
-      setIsFavorite(!!fav)
-    }
   }
 
   async function loadLeagues() {
@@ -212,14 +262,55 @@ export default function GymProfileScreen() {
   async function toggleFavorite() {
     if (!user || !isUser || favLoading) return
     setFavLoading(true)
-    if (isFavorite) {
-      await supabase.from('gym_favorites').delete().eq('user_id', user.id).eq('gym_id', id)
-      setIsFavorite(false)
+    const newState = !isFavorite
+    setIsFavorite(newState) // optimista
+    if (!newState) {
+      const { error } = await supabase.from('gym_favorites').delete().eq('user_id', user.id).eq('gym_id', id)
+      if (error) setIsFavorite(true) // revertir si falla
     } else {
-      await supabase.from('gym_favorites').insert({ user_id: user.id, gym_id: id })
-      setIsFavorite(true)
+      const { error } = await supabase.from('gym_favorites')
+        .upsert({ user_id: user.id, gym_id: id }, { onConflict: 'user_id,gym_id', ignoreDuplicates: true })
+      if (error) setIsFavorite(false) // revertir si falla
     }
     setFavLoading(false)
+  }
+
+  // ── Lógica de filtros ──
+  const availableSections = useMemo(() => {
+    const set = new Set<string>()
+    blocks.forEach(b => { if (b.sector) set.add(b.sector) })
+    return Array.from(set).sort()
+  }, [blocks])
+
+  const filteredBlocks = useMemo(() => blocks.filter(b => {
+    if (filterDiffs.size > 0 && !filterDiffs.has(b.difficulty)) return false
+    if (filterStyles.size > 0) {
+      const bs = (b.color ?? '').split(', ')
+      if (!bs.some((s: string) => filterStyles.has(s))) return false
+    }
+    if (filterSections.size > 0 && !filterSections.has(b.sector ?? '')) return false
+    if (filterPersonal !== 'all') {
+      const a = attempts[b.id]
+      if (filterPersonal === 'unattempted') return a == null
+      if (filterPersonal === 'done') return a != null && a.number_of_goes >= 1
+      if (filterPersonal === 'pending') return a != null && a.number_of_goes === 0
+    }
+    return true
+  }), [blocks, attempts, filterDiffs, filterStyles, filterSections, filterPersonal])
+
+  const activeFilters = filterDiffs.size + filterStyles.size + filterSections.size + (filterPersonal !== 'all' ? 1 : 0)
+
+  function toggleSet(set: Set<string>, value: string): Set<string> {
+    const next = new Set(set)
+    next.has(value) ? next.delete(value) : next.add(value)
+    return next
+  }
+
+  function clearFilters() {
+    setFilterDiffs(new Set())
+    setFilterStyles(new Set())
+    setFilterSections(new Set())
+    setFilterPersonal('all')
   }
 
   const now = new Date()
@@ -238,7 +329,26 @@ export default function GymProfileScreen() {
         <Text style={[styles.topBarTitle, { color: colors.textPrimary }]} numberOfLines={1}>
           {gymProfile?.name ?? '...'}
         </Text>
-        <View style={{ width: 36 }} />
+        {/* Estrella de favorito — solo usuarios */}
+        {isUser ? (
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={toggleFavorite}
+            disabled={favLoading}
+            activeOpacity={0.7}
+          >
+            {favLoading
+              ? <ActivityIndicator size="small" color={colors.textMuted} />
+              : <Icon
+                  name={isFavorite ? 'star' : 'star-outline'}
+                  size={22}
+                  color={isFavorite ? '#F5C518' : colors.textMuted}
+                />
+            }
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 36 }} />
+        )}
       </View>
 
       {/* Tabs */}
@@ -262,7 +372,6 @@ export default function GymProfileScreen() {
           {/* ── TAB INFO ── */}
           {tab === 'info' && gymProfile && (
             <View style={styles.tabContent}>
-              <Text style={[styles.gymName, { color: colors.textPrimary }]}>{gymProfile.name}</Text>
               {gymProfile.gym_location && (
                 <Text style={[styles.location, { color: colors.textMuted }]}>📍 {gymProfile.gym_location}</Text>
               )}
@@ -270,43 +379,58 @@ export default function GymProfileScreen() {
                 <Text style={[styles.description, { color: colors.textSecondary }]}>{gymProfile.gym_description}</Text>
               )}
 
-              {/* Bloques activos */}
+              {/* Barra de bloques + favorito */}
               <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={styles.infoCardRow}>
                   <Text style={[styles.infoCardLabel, { color: colors.textSecondary }]}>Bloques activos</Text>
-                  <Text style={[styles.infoCardValue, { color: colors.primary }]}>
-                    {gymProfile.activeBlocks}/100
-                  </Text>
+                  <Text style={[styles.infoCardValue, { color: colors.primary }]}>{gymProfile.activeBlocks}/100</Text>
                 </View>
                 <View style={[styles.barTrack, { backgroundColor: colors.surfaceAlt }]}>
                   <View style={[styles.barFill, { width: `${(gymProfile.activeBlocks / 100) * 100}%` as any, backgroundColor: gymProfile.activeBlocks >= 90 ? colors.warning : colors.primary }]} />
                 </View>
               </View>
 
-              {/* Botones */}
-              {isUser && (
-                <TouchableOpacity
-                  style={[styles.favBtn, { backgroundColor: isFavorite ? colors.accentMuted : colors.surface, borderColor: isFavorite ? colors.accent : colors.border }]}
-                  onPress={toggleFavorite}
-                  disabled={favLoading}
-                  activeOpacity={0.8}
-                >
-                  {favLoading
-                    ? <ActivityIndicator size="small" color={colors.accent} />
-                    : <Text style={[styles.favBtnText, { color: isFavorite ? colors.accentDark : colors.textSecondary }]}>
-                        {isFavorite ? '⭐ En favoritos' : '☆ Añadir a favoritos'}
-                      </Text>
-                  }
-                </TouchableOpacity>
-              )}
 
-              <TouchableOpacity
-                style={[styles.exploreBtn, { backgroundColor: colors.primary }]}
-                onPress={() => router.push(`/(app)/gyms/${id}/blocks`)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.exploreBtnText}>Explorar bloques →</Text>
-              </TouchableOpacity>
+              {/* ── Bloques con filtro ── */}
+              <View style={styles.blocksHeader}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Bloques</Text>
+                <TouchableOpacity
+                  style={[styles.filterBtn, { backgroundColor: colors.surface, borderColor: activeFilters > 0 ? colors.primary : colors.border }]}
+                  onPress={() => setShowFilters(true)} activeOpacity={0.8}
+                >
+                  <Icon name="options-outline" size={16} color={activeFilters > 0 ? colors.primary : colors.textSecondary} />
+                  {activeFilters > 0 && (
+                    <View style={[styles.filterBadge, { backgroundColor: colors.primary }]}>
+                      <Text style={styles.filterBadgeText}>{activeFilters}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {blocksLoading ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : filteredBlocks.length === 0 ? (
+                <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Icon name="grid-outline" size={40} color={colors.textMuted} />
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                    {blocks.length === 0 ? 'Sin bloques activos' : 'Sin resultados'}
+                  </Text>
+                  <Text style={[{ fontSize: typography.size.sm, color: colors.textMuted, textAlign: 'center' }]}>
+                    {activeFilters > 0 ? 'Prueba a cambiar los filtros' : ''}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.blockList}>
+                  {filteredBlocks.map(block => (
+                    <BlockCard
+                      key={block.id}
+                      block={block}
+                      attempt={attempts[block.id] ?? null}
+                      onPress={() => router.push(`/(app)/blocks/${block.id}`)}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -411,6 +535,110 @@ export default function GymProfileScreen() {
         </ScrollView>
       )}
 
+      {/* ── Modal filtros ── */}
+      <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.filterSheet, { backgroundColor: colors.surface }]}>
+            <View style={[styles.filterSheetHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.filterSheetTitle, { color: colors.textPrimary }]}>Filtros</Text>
+              <View style={styles.filterSheetActions}>
+                {activeFilters > 0 && (
+                  <TouchableOpacity onPress={clearFilters}>
+                    <Text style={[styles.clearText, { color: colors.primary }]}>Limpiar</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => setShowFilters(false)}>
+                  <Icon name="close-outline" size={24} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.filterBody}>
+              {/* Estado personal */}
+              <Text style={[styles.filterGroupLabel, { color: colors.textSecondary }]}>Estado</Text>
+              <View style={styles.filterChips}>
+                {([
+                  { value: 'all',         label: 'Todos' },
+                  { value: 'unattempted', label: 'Sin encadenar' },
+                  { value: 'done',        label: 'Encadenados' },
+                  { value: 'pending',     label: 'Intentados' },
+                ] as { value: PersonalFilter; label: string }[]).map(p => {
+                  const sel = filterPersonal === p.value
+                  return (
+                    <TouchableOpacity key={p.value}
+                      style={[styles.filterChip, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }, sel && { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}
+                      onPress={() => setFilterPersonal(p.value)} activeOpacity={0.8}>
+                      <Text style={[styles.filterChipText, { color: sel ? colors.primary : colors.textSecondary }]}>{p.label}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+
+              {/* Dificultad */}
+              <Text style={[styles.filterGroupLabel, { color: colors.textSecondary }]}>Dificultad</Text>
+              <View style={styles.filterChips}>
+                {DIFFICULTIES.map(d => {
+                  const sel = filterDiffs.has(d.value)
+                  return (
+                    <TouchableOpacity key={d.value}
+                      style={[styles.filterChip, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }, sel && { backgroundColor: d.color + '22', borderColor: d.color }]}
+                      onPress={() => setFilterDiffs(prev => toggleSet(prev, d.value))} activeOpacity={0.8}>
+                      <View style={[styles.diffDot, { backgroundColor: d.color }]} />
+                      <Text style={[styles.filterChipText, { color: sel ? d.color : colors.textSecondary }]}>{d.label}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+
+              {/* Estilo */}
+              <Text style={[styles.filterGroupLabel, { color: colors.textSecondary }]}>Estilo</Text>
+              <View style={styles.filterChips}>
+                {STYLES_OPTIONS.map(s => {
+                  const sel = filterStyles.has(s)
+                  return (
+                    <TouchableOpacity key={s}
+                      style={[styles.filterChip, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }, sel && { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}
+                      onPress={() => setFilterStyles(prev => toggleSet(prev, s))} activeOpacity={0.8}>
+                      <Text style={[styles.filterChipText, { color: sel ? colors.primary : colors.textSecondary }]}>{s}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+
+              {/* Sección */}
+              {availableSections.length > 0 && (
+                <>
+                  <Text style={[styles.filterGroupLabel, { color: colors.textSecondary }]}>Sección</Text>
+                  <View style={styles.filterChips}>
+                    {availableSections.map(s => {
+                      const sel = filterSections.has(s)
+                      return (
+                        <TouchableOpacity key={s}
+                          style={[styles.filterChip, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }, sel && { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}
+                          onPress={() => setFilterSections(prev => toggleSet(prev, s))} activeOpacity={0.8}>
+                          <Text style={[styles.filterChipText, { color: sel ? colors.primary : colors.textSecondary }]}>{s}</Text>
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.applyBtn, { backgroundColor: colors.primary }]}
+              onPress={() => setShowFilters(false)} activeOpacity={0.8}
+            >
+              <Text style={[styles.applyBtnText, { color: colors.textInverse }]}>
+                {filteredBlocks.length === blocks.length
+                  ? 'Ver todos los bloques'
+                  : `Ver ${filteredBlocks.length} bloque${filteredBlocks.length !== 1 ? 's' : ''}`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <JoinLeagueModal
         visible={!!codeModalLeagueId}
         leagueId={codeModalLeagueId}
@@ -442,10 +670,28 @@ const styles = StyleSheet.create({
   infoCardValue: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   barTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3 },
-  favBtn: { borderRadius: radius.md, borderWidth: 1, paddingVertical: spacing.sm, alignItems: 'center' },
-  favBtnText: { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
-  exploreBtn: { borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: 'center' },
-  exploreBtnText: { color: '#fff', fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  // Bloques inline
+  blocksHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  filterBtn: { position: 'relative', width: 32, height: 32, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  filterBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  filterBadgeText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
+  blockList: { gap: spacing.sm },
+  // Modal filtros
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  filterSheet: { borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, maxHeight: '85%' },
+  filterSheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.lg, borderBottomWidth: StyleSheet.hairlineWidth },
+  filterSheetTitle: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
+  filterSheetActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  clearText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  filterBody: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm },
+  filterGroupLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  filterChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: radius.full, borderWidth: 1, paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
+  filterChipText: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  diffDot: { width: 8, height: 8, borderRadius: 4 },
+  applyBtn: { margin: spacing.lg, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center' },
+  applyBtnText: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   subSection: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
   emptyCard: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, alignItems: 'center', gap: spacing.xs },
   emptyText: { fontSize: typography.size.md, textAlign: 'center' },
