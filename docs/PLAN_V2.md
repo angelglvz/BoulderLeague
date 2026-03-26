@@ -54,7 +54,10 @@
 | Fase 1 — Registro con tipo de cuenta | ✅ Completada |
 | Fase 2 — Home diferenciado por tipo | ✅ Completada |
 | Fase 3 — Bloques de Gym | ✅ Completada |
-| Fase 4 en adelante | 🔲 Pendiente |
+| Fase 4 — Mejoras registro, scoring, valoraciones y stats | ✅ Completada |
+| Fase 5 — Rankings del Gym | 🔲 Pendiente |
+| Fase 6 — Achievements | 🔲 Pendiente |
+| Fase 7 — Liguillas V2 | 🔲 Pendiente |
 
 > **Notas de implementación real (vs. plan original):**
 > - 1.1: Los botones de tipo se movieron al formulario de registro (tabs), no a welcome
@@ -63,6 +66,11 @@
 > - 2.5/2.6: El buscador vive directamente en el home del usuario, no en pantalla separada
 > - RLS: Las políticas no estaban aplicadas en producción — se corrigió con `fix_all_rls_policies.sql`
 > - **Fase 3 completada 2026-03-26** — ver notas detalladas al pie de la sección Fase 3
+> - **Fase 4 completada 2026-03-26:**
+>   - 4.1: "Sin encadenar" eliminado del selector; botón dinámico "Salir sin registrar" / "Registrar"
+>   - 4.2: Scoring V2 aplicado — base points actualizados (2→7, +5→2) y 7 niveles de bonus (0/2/3/4/8/9/10)
+>   - 4.3: `components/StarRating.tsx` creado; rating UPSERT en `block_ratings`; comentario guardado en `block_comments` desde log-attempt; lectura del comentario propio en detalle de bloque
+>   - 4.4: `app/(app)/stats/index.tsx` con estadísticas globales (dificultad/pegues/estilo); tab "Mis stats" en gym/[id].tsx con stats filtradas por gym; acceso rápido desde home de usuario
 
 ---
 
@@ -911,47 +919,108 @@ Crear `components/JoinLeagueModal.tsx`:
 ---
 
 
-## 🧗 Fase 4 — Registro de intentos V2 y scoring
+## 🏋️ Fase 4 — Mejoras de registro, puntuación, valoraciones y estadísticas
 
 > Dependencia: Fase 3 completada
-> Estimación: 3-4h
+> Estado: 🔲 Pendiente
 
-### 4.1 — Pantalla de registro de intento (refactor)
+---
 
-Refactor `app/(app)/blocks/[id]/log-attempt.tsx`:
-- Selector visual de resultado: **FLASH** / **COMPLETADO** / **NO COMPLETADO**
-- Si resultado ≠ FLASH: slider/picker de número de intentos (2-99)
-- Mostrar score calculado en tiempo real antes de guardar
-- Si ya existe intento previo: mostrar resultado actual y preguntar si actualizar
-- Solo accesible para cuentas USER
+### 4.1 — Pantalla de registro de intentos (mejoras UX)
+
+**Cambios sobre la implementación actual de `log-attempt.tsx`:**
+
+- **Eliminar la opción "Sin encadenar" (0 pegues)** del selector. Solo mostrar: Flash / 2 / 3 / 4 / 5 / +5
+- **Botón inferior dinámico:**
+  - Estado inicial (ninguna opción seleccionada): texto **"Salir sin registrar"** → hace `router.replace` de vuelta al bloque sin guardar nada
+  - Cuando el usuario selecciona una opción: texto cambia a **"Registrar"** → guarda el intento y navega de vuelta
+- El resto de la pantalla no se modifica
 
 **Archivos:** `app/(app)/blocks/[id]/log-attempt.tsx`, `lib/scoring.ts`
 
-### 4.2 — Scoring V2
+---
 
-Actualizar `lib/scoring.ts`:
+### 4.2 — Scoring V2 con bonus de dificultad actualizado
+
+**Actualizar `lib/scoring.ts` con los 7 niveles:**
+
 ```typescript
-// Puntos base
-flash → 10
-2 intentos → 5
-3 → 4, 4 → 3, 5 → 2, >5 → 1
+// Puntos base (sin cambios)
+flash       → 10 pts
+2 pegues    → 7 pts
+3 pegues    → 5 pts
+4 pegues    → 4 pts
+5 pegues    → 3 pts
++5 pegues   → 2 pts
 
-// Bonus por dificultad
-novato → +0, medio → +1, avanzado → +2,
-experimentado → +3, profesional → +4
+// Bonus por dificultad (7 niveles, actualizado)
+principiante → +0
+novato       → +2
+medio        → +3
+avanzado     → +4
+experimentado→ +8
+elite        → +9  (nuevo nivel)
+profesional  → +10
 ```
 
 **Archivos:** `lib/scoring.ts`
 
-### 4.3 — Historial de intentos del usuario
+---
 
-Crear `app/(app)/profile/attempts.tsx`:
-- Lista cronológica de todos los intentos del usuario
-- Agrupado por fecha
-- Indicador de resultado y puntuación
-- Filtro por dificultad
+### 4.3 — Rating y comentario en detalle de bloque
 
-**Archivos:** `app/(app)/profile/attempts.tsx`
+**Añadir en `app/(app)/blocks/[id]/index.tsx`**, encima del botón "Resolver":
+
+#### Rating (1-5 estrellas)
+- Crear `components/StarRating.tsx`:
+  - 5 estrellas interactivas (`TouchableOpacity`)
+  - Modo lectura (media del bloque) y modo escritura (valoración propia)
+  - Versión compacta inline
+- En el detalle del bloque:
+  - Si el usuario aún no ha valorado: mostrar 5 estrellas vacías interactivas
+  - Si ya valoró: mostrar su valoración con opción de cambiarla
+  - UPSERT en `block_ratings` al tocar
+  - Mostrar la media del bloque en modo lectura junto a la valoración propia
+
+#### Comentario (texto libre)
+- Caja de texto (`TextInput`) con placeholder `"Deja un comentario (opcional)"`, máx. 300 caracteres
+- Contador de caracteres visible
+- El comentario se guarda junto con el intento al pulsar "Registrar" (INSERT en `block_comments`)
+- Si el bloque ya tiene intento registrado: mostrar el comentario propio en modo lectura (no editable)
+
+**Archivos:** `app/(app)/blocks/[id]/index.tsx`, `components/StarRating.tsx`
+
+---
+
+### 4.4 — Pantalla de estadísticas del usuario
+
+**Crear `app/(app)/stats/index.tsx`** accesible desde el home del usuario (acceso rápido):
+
+#### Estadísticas globales (todos los rocódromos)
+- **Por dificultad:** gráfico de barras horizontales — nº de bloques resueltos por nivel (Principiante → Profesional)
+- **Por pegues:** distribución — cuántos Flash / 2 pegues / 3 pegues / etc.
+- **Por estilo:** barras — cuántos bloques de cada estilo (Vertical, Placa, Desplome, etc.)
+- Número total de bloques resueltos, flashes y puntuación acumulada en cabecera
+
+#### Estadísticas por rocódromo
+**En `app/(app)/gym/[id].tsx`**, añadir una cuarta tab **"Mis stats"** (solo visible para usuarios):
+- Los mismos 3 grupos de gráficos pero filtrados por bloques de ese gym
+- Comparativa opcional: "Tu posición en este gym: #N"
+
+#### Diseño
+- Barras simples con `View` y `width: porcentaje%` (sin librerías externas de charts)
+- Minimalista: número + barra + label, sin colores excesivos — usar `colors.primary` para las barras
+- El valor más alto ocupa el 100% de ancho, el resto escalan proporcionalmente
+
+**Archivos:** `app/(app)/stats/index.tsx`, `app/(app)/stats/_layout.tsx`, `app/(app)/gym/[id].tsx`
+
+---
+
+### Notas de implementación
+
+- **BD:** Las tablas `block_ratings` y `block_comments` ya existen en el schema V2. No requieren migración.
+- **Scoring:** Actualizar solo `calcDifficultyBonus` en `lib/scoring.ts`. Los intentos ya guardados mantienen su puntuación original (no retroactivo).
+- **Stats:** Calcular en cliente con los datos de `attempts` ya cargados, sin vistas adicionales en BD para el MVP.
 
 ---
 
@@ -996,246 +1065,874 @@ En el ranking del gym:
 
 ---
 
-## 🎖️ Fase 6 — Achievements (Medallas)
+## 🎖️ Fase 6 — Achievements, Ranking Global y Muro de Logros
 
 > Dependencia: Fase 4 completada
-> Estimación: 4-5h
+> Estimación: 7-9h
 
-### 6.1 — Definición de medallas y condiciones
+### Principios de diseño del sistema
+
+1. **Solo bloques de rocódromos registrados** — Los achievements **NO** se otorgan por bloques de liguillas privadas de usuario (`owner_type = 'user'`). Solo cuentan bloques con `owner_type = 'gym'`.
+2. **Progresión infinita** — Siempre existe una medalla siguiente. Los umbrales crecen según un algoritmo exponencial: nunca se llega al límite.
+3. **Puntuación por medalla** — Cada medalla concede puntos que se acumulan en un marcador global del usuario.
+4. **Ranking independiente de gyms** — El ranking global es entre usuarios de toda la app, sin relación con ningún rocódromo concreto.
+5. **Muro público de logros** — Una tab dedicada en la navegación principal muestra en tiempo real los logros conseguidos por los usuarios.
+
+---
+
+### 6.1 — Algoritmo de umbrales y puntos (progresión infinita)
+
+#### Funciones de umbral por categoría
+
+**Volumen y Flash** — `T_vf(n)`, n ≥ 1:
+```
+T_vf(1) = 5
+T_vf(2) = 15
+T_vf(3) = 30
+T_vf(4) = 50
+T_vf(5) = 100
+T_vf(n≥6) = 100 × 2^(n−5)    → 200, 400, 800, 1600 …
+```
+
+**Dificultad** — `T_d(n)`, n ≥ 1:
+```
+T_d(1) = 3
+T_d(2) = 10
+T_d(3) = 25
+T_d(4) = 50
+T_d(n≥5) = 50 × 2^(n−4)      → 100, 200, 400 …
+```
+
+**Explorador** — `T_e(n)`, n ≥ 1:
+```
+T_e(1) = 2
+T_e(2) = 5
+T_e(3) = 10
+T_e(4) = 20
+T_e(n≥5) = 20 × 2^(n−4)      → 40, 80, 160 …
+```
+
+**Constancia** — umbrales fijos (máximo 5 tiers, se pueden ganar cada mes):
+```
+Tier 1 → 3 días activos/mes
+Tier 2 → 7 días activos/mes
+Tier 3 → 14 días activos/mes
+Tier 4 → 20 días activos/mes
+Tier 5 → 28 días activos/mes
+```
+
+#### Puntos base por tier — `P(n)`:
+```
+P(1) = 10      (Bronce)
+P(2) = 25      (Plata)
+P(3) = 50      (Oro)
+P(4) = 100     (Platino)
+P(5) = 200     (Diamante)
+P(n≥6) = 200 × 2^(n−5)       → 400, 800, 1600 …
+```
+
+Cada categoría aplica un **multiplicador sobre `P(n)`**:
+
+| Categoría | Multiplicador |
+|-----------|--------------|
+| `volume` | × 1.0 |
+| `difficulty_easy` | × 1.0 |
+| `difficulty_mid` | × 1.4 |
+| `difficulty_advanced` | × 2.0 |
+| `difficulty_pro` | × 3.0 |
+| `flash` | × 1.5 |
+| `consistency` | × 1.0 (puntos fijos, ver tabla) |
+| `explorer` | × 1.5 |
+
+#### Nombres y colores de tier
+
+| Tier | Nombre | Color UI |
+|------|--------|----------|
+| 1 | Bronce | `#CD7F32` |
+| 2 | Plata | `#C0C0C0` |
+| 3 | Oro | `#FFD700` |
+| 4 | Platino | `#E5E4E2` |
+| 5 | Diamante | `#B9F2FF` |
+| 6 | Leyenda I | `#FF6B35` |
+| 7+ | Leyenda II, III … | `#FF6B35` |
+
+---
+
+### 6.2 — Catálogo de categorías y labels
+
+#### Categoría 1 — Volumen (`volume`)
+> Total de bloques de gym encadenados (histórico acumulado).
+
+| Tier | Umbral | Puntos | Label |
+|------|--------|--------|-------|
+| 1 | 5 | 10 | Primeros pasos |
+| 2 | 15 | 25 | En racha |
+| 3 | 30 | 50 | Escalador regular |
+| 4 | 50 | 100 | Dedicado |
+| 5 | 100 | 200 | Centenario |
+| 6 | 200 | 400 | Incansable |
+| n≥7 | `100×2^(n−5)` | `200×2^(n−5)` | Leyenda del bloque {n−5} |
+
+#### Categoría 2 — Dificultad Easy (`difficulty_easy`)
+> Bloques de nivel fácil completados en gym.
+
+| Tier | Umbral | Puntos | Label |
+|------|--------|--------|-------|
+| 1 | 3 | 10 | Calentando |
+| 2 | 10 | 25 | Fluido |
+| 3 | 25 | 50 | Domina el fácil |
+| 4 | 50 | 100 | Maestro verde |
+| n≥5 | `50×2^(n−4)` | `100×2^(n−4)` | Verde {n−4} |
+
+#### Categoría 3 — Dificultad Mid (`difficulty_mid`)
+> Bloques de nivel medio completados en gym.
+
+| Tier | Umbral | Puntos | Label |
+|------|--------|--------|-------|
+| 1 | 3 | 14 | A medio gas |
+| 2 | 10 | 35 | Constante |
+| 3 | 25 | 70 | Medio maestro |
+| 4 | 50 | 140 | Sólido |
+| n≥5 | `50×2^(n−4)` | `140×2^(n−4)` | Medio {n−4} |
+
+#### Categoría 4 — Dificultad Advanced (`difficulty_advanced`)
+> Bloques de nivel avanzado completados en gym.
+
+| Tier | Umbral | Puntos | Label |
+|------|--------|--------|-------|
+| 1 | 3 | 20 | Cazador avanzado |
+| 2 | 10 | 50 | Perseverante |
+| 3 | 25 | 100 | Elite avanzado |
+| 4 | 50 | 200 | Obsesionado |
+| n≥5 | `50×2^(n−4)` | `200×2^(n−4)` | Avanzado {n−4} |
+
+#### Categoría 5 — Dificultad Pro (`difficulty_pro`)
+> Bloques de nivel profesional completados en gym.
+
+| Tier | Umbral | Puntos | Label |
+|------|--------|--------|-------|
+| 1 | 3 | 30 | Toca el cielo |
+| 2 | 10 | 75 | Pro en serio |
+| 3 | 25 | 150 | Leyenda pro |
+| 4 | 50 | 300 | Más allá del límite |
+| n≥5 | `50×2^(n−4)` | `300×2^(n−4)` | Pro {n−4} |
+
+#### Categoría 6 — Flash (`flash`)
+> Bloques de gym completados al primer intento.
+
+| Tier | Umbral | Puntos | Label |
+|------|--------|--------|-------|
+| 1 | 1 | 15 | Primer flash |
+| 2 | 5 | 38 | Flash en racha |
+| 3 | 15 | 75 | Ojo de halcón |
+| 4 | 30 | 150 | Lector de bloques |
+| 5 | 50 | 300 | Señal de flash |
+| n≥6 | `50×2^(n−5)` | `300×2^(n−5)` | Flash maestro {n−5} |
+
+#### Categoría 7 — Constancia (`consistency`)
+> Días en el mes actual con al menos 1 bloque de gym completado.
+> Se puede ganar de nuevo cada mes que se cumpla el umbral.
+
+| Tier | Días/mes | Puntos | Label |
+|------|----------|--------|-------|
+| 1 | 3 | 20 | Asistencia regular |
+| 2 | 7 | 50 | Escalador semanal |
+| 3 | 14 | 100 | Quincenal |
+| 4 | 20 | 200 | Escalador constante |
+| 5 | 28 | 400 | Un mes sin parar |
+
+#### Categoría 8 — Explorador (`explorer`)
+> Número de gyms distintos donde el usuario ha completado al menos 1 bloque.
+
+| Tier | Gyms | Puntos | Label |
+|------|------|--------|-------|
+| 1 | 2 | 15 | Explorador novato |
+| 2 | 5 | 38 | Rodante |
+| 3 | 10 | 75 | Trotamundos |
+| 4 | 20 | 150 | Sin fronteras |
+| n≥5 | `20×2^(n−4)` | `150×2^(n−4)` | Explorador mundial {n−4} |
+
+---
+
+### 6.3 — Implementación del algoritmo en código
 
 Crear `lib/achievements.ts`:
+
 ```typescript
-const ACHIEVEMENT_CONDITIONS = {
-  blocks_10:        { label: '10 bloques completados',    check: (stats) => stats.completed >= 10 },
-  blocks_50:        { label: '50 bloques completados',    check: (stats) => stats.completed >= 50 },
-  blocks_100:       { label: '100 bloques completados',   check: (stats) => stats.completed >= 100 },
-  advanced_10:      { label: '10 bloques Avanzado',       check: (stats) => stats.advanced >= 10 },
-  professional_5:   { label: '5 bloques Profesional',     check: (stats) => stats.professional >= 5 },
-  flash_month:      { label: 'Flash del mes',             check: (stats) => stats.flashesThisMonth >= 5 },
-  active_days_month:{ label: 'Escalador constante',       check: (stats) => stats.activeDaysThisMonth >= 10 },
+// ─────────────────────────────────────────────
+// TIPOS
+// ─────────────────────────────────────────────
+export type AchievementCategory =
+  | 'volume'
+  | 'difficulty_easy'
+  | 'difficulty_mid'
+  | 'difficulty_advanced'
+  | 'difficulty_pro'
+  | 'flash'
+  | 'consistency'
+  | 'explorer';
+
+export interface MedalDefinition {
+  key: string;           // "volume_tier_3"
+  category: AchievementCategory;
+  tier: number;
+  threshold: number;
+  points: number;
+  label: string;
+  tierName: string;      // "Bronce", "Oro"…
+  tierColor: string;     // hex
+}
+
+export interface UserGymStats {
+  gymBlocksCompleted: number;
+  gymBlocksByDifficulty: { easy: number; mid: number; advanced: number; pro: number };
+  gymFlashes: number;
+  activeDaysThisMonth: number;
+  distinctGymsWithCompletion: number;
+}
+
+// ─────────────────────────────────────────────
+// FUNCIONES DE UMBRAL
+// ─────────────────────────────────────────────
+
+export function volumeThreshold(n: number): number {
+  if (n === 1) return 5;
+  if (n === 2) return 15;
+  if (n === 3) return 30;
+  if (n === 4) return 50;
+  if (n === 5) return 100;
+  return Math.round(100 * Math.pow(2, n - 5));
+}
+
+export function difficultyThreshold(n: number): number {
+  if (n === 1) return 3;
+  if (n === 2) return 10;
+  if (n === 3) return 25;
+  if (n === 4) return 50;
+  return Math.round(50 * Math.pow(2, n - 4));
+}
+
+export function flashThreshold(n: number): number {
+  const fixed = [1, 5, 15, 30, 50];
+  if (n <= fixed.length) return fixed[n - 1];
+  return Math.round(50 * Math.pow(2, n - fixed.length));
+}
+
+export function explorerThreshold(n: number): number {
+  if (n === 1) return 2;
+  if (n === 2) return 5;
+  if (n === 3) return 10;
+  if (n === 4) return 20;
+  return Math.round(20 * Math.pow(2, n - 4));
+}
+
+export function baseTierPoints(n: number): number {
+  if (n === 1) return 10;
+  if (n === 2) return 25;
+  if (n === 3) return 50;
+  if (n === 4) return 100;
+  if (n === 5) return 200;
+  return Math.round(200 * Math.pow(2, n - 5));
+}
+
+export function tierMeta(n: number): { name: string; color: string } {
+  const tiers = ['Bronce', 'Plata', 'Oro', 'Platino', 'Diamante'];
+  if (n <= tiers.length) return { name: tiers[n - 1], color: ['#CD7F32','#C0C0C0','#FFD700','#E5E4E2','#B9F2FF'][n - 1] };
+  return { name: `Leyenda ${n - tiers.length}`, color: '#FF6B35' };
+}
+
+// ─────────────────────────────────────────────
+// GENERADOR INFINITO DE DEFINICIONES
+// Llama con maxTier=30 para cubrir décadas de uso.
+// ─────────────────────────────────────────────
+
+export function generateMedalDefinitions(maxTier = 30): MedalDefinition[] {
+  const medals: MedalDefinition[] = [];
+
+  // Volumen
+  for (let n = 1; n <= maxTier; n++) {
+    const { name, color } = tierMeta(n);
+    medals.push({ key: `volume_tier_${n}`, category: 'volume', tier: n,
+      threshold: volumeThreshold(n), points: baseTierPoints(n),
+      label: volumeLabel(n), tierName: name, tierColor: color });
+  }
+
+  // Dificultades
+  const diffMult: Record<string, number> = {
+    difficulty_easy: 1, difficulty_mid: 1.4,
+    difficulty_advanced: 2, difficulty_pro: 3,
+  };
+  for (const [cat, mult] of Object.entries(diffMult)) {
+    for (let n = 1; n <= maxTier; n++) {
+      const { name, color } = tierMeta(n);
+      medals.push({ key: `${cat}_tier_${n}`, category: cat as AchievementCategory, tier: n,
+        threshold: difficultyThreshold(n), points: Math.round(baseTierPoints(n) * mult),
+        label: difficultyLabel(cat as AchievementCategory, n), tierName: name, tierColor: color });
+    }
+  }
+
+  // Flash
+  for (let n = 1; n <= maxTier; n++) {
+    const { name, color } = tierMeta(n);
+    medals.push({ key: `flash_tier_${n}`, category: 'flash', tier: n,
+      threshold: flashThreshold(n), points: Math.round(baseTierPoints(n) * 1.5),
+      label: flashLabel(n), tierName: name, tierColor: color });
+  }
+
+  // Constancia — solo 5 tiers fijos
+  const consDays = [3, 7, 14, 20, 28];
+  const consPts  = [20, 50, 100, 200, 400];
+  const consLbls = ['Asistencia regular','Escalador semanal','Quincenal','Escalador constante','Un mes sin parar'];
+  for (let n = 1; n <= 5; n++) {
+    const { name, color } = tierMeta(n);
+    medals.push({ key: `consistency_tier_${n}`, category: 'consistency', tier: n,
+      threshold: consDays[n - 1], points: consPts[n - 1],
+      label: consLbls[n - 1], tierName: name, tierColor: color });
+  }
+
+  // Explorador
+  for (let n = 1; n <= maxTier; n++) {
+    const { name, color } = tierMeta(n);
+    medals.push({ key: `explorer_tier_${n}`, category: 'explorer', tier: n,
+      threshold: explorerThreshold(n), points: Math.round(baseTierPoints(n) * 1.5),
+      label: explorerLabel(n), tierName: name, tierColor: color });
+  }
+
+  return medals;
+}
+
+// ─────────────────────────────────────────────
+// LABELS
+// ─────────────────────────────────────────────
+function volumeLabel(n: number): string {
+  const f = ['Primeros pasos','En racha','Escalador regular','Dedicado','Centenario','Incansable'];
+  return n <= f.length ? f[n-1] : `Leyenda del bloque ${n - f.length}`;
+}
+function difficultyLabel(cat: AchievementCategory, n: number): string {
+  const m: Partial<Record<AchievementCategory, string[]>> = {
+    difficulty_easy:     ['Calentando','Fluido','Domina el fácil','Maestro verde'],
+    difficulty_mid:      ['A medio gas','Constante','Medio maestro','Sólido'],
+    difficulty_advanced: ['Cazador avanzado','Perseverante','Elite avanzado','Obsesionado'],
+    difficulty_pro:      ['Toca el cielo','Pro en serio','Leyenda pro','Más allá del límite'],
+  };
+  const arr = m[cat] ?? [];
+  return n <= arr.length ? arr[n-1] : `${cat.replace('difficulty_','')} ${n - arr.length}`;
+}
+function flashLabel(n: number): string {
+  const f = ['Primer flash','Flash en racha','Ojo de halcón','Lector de bloques','Señal de flash'];
+  return n <= f.length ? f[n-1] : `Flash maestro ${n - f.length}`;
+}
+function explorerLabel(n: number): string {
+  const f = ['Explorador novato','Rodante','Trotamundos','Sin fronteras'];
+  return n <= f.length ? f[n-1] : `Explorador mundial ${n - f.length}`;
+}
+
+// ─────────────────────────────────────────────
+// EVALUACIÓN
+// ─────────────────────────────────────────────
+
+/**
+ * Compara las stats actuales del usuario con las medallas ya obtenidas
+ * y devuelve las medallas nuevas que acaba de conseguir.
+ */
+export function evaluateNewAchievements(
+  stats: UserGymStats,
+  earned: Set<string>,
+): MedalDefinition[] {
+  const allMedals = generateMedalDefinitions(30);
+  const newMedals: MedalDefinition[] = [];
+
+  for (const medal of allMedals) {
+    if (earned.has(medal.key)) continue;
+    let stat = 0;
+    switch (medal.category) {
+      case 'volume':              stat = stats.gymBlocksCompleted; break;
+      case 'difficulty_easy':     stat = stats.gymBlocksByDifficulty.easy; break;
+      case 'difficulty_mid':      stat = stats.gymBlocksByDifficulty.mid; break;
+      case 'difficulty_advanced': stat = stats.gymBlocksByDifficulty.advanced; break;
+      case 'difficulty_pro':      stat = stats.gymBlocksByDifficulty.pro; break;
+      case 'flash':               stat = stats.gymFlashes; break;
+      case 'consistency':         stat = stats.activeDaysThisMonth; break;
+      case 'explorer':            stat = stats.distinctGymsWithCompletion; break;
+    }
+    if (stat >= medal.threshold) newMedals.push(medal);
+  }
+  return newMedals;
+}
+
+/**
+ * Función principal a llamar desde log-attempt.tsx tras guardar un intento.
+ * Devuelve las MedalDefinition nuevas para mostrar el toast.
+ */
+export async function evaluateAchievements(userId: string): Promise<MedalDefinition[]> {
+  const supabase = createClientComponentClient();
+
+  const { data: stats } = await supabase
+    .rpc('get_user_gym_stats', { p_user_id: userId });
+
+  const { data: earnedRows } = await supabase
+    .from('achievements')
+    .select('medal_key')
+    .eq('user_id', userId);
+  const earned = new Set(earnedRows?.map((r: { medal_key: string }) => r.medal_key) ?? []);
+
+  const newMedals = evaluateNewAchievements(stats as UserGymStats, earned);
+  if (newMedals.length === 0) return [];
+
+  // Bulk insert
+  await supabase.from('achievements').insert(
+    newMedals.map(m => ({
+      user_id: userId, medal_key: m.key,
+      category: m.category, tier: m.tier, points: m.points,
+    }))
+  );
+
+  // Insertar en feed de actividad
+  await supabase.from('activity_feed').insert(
+    newMedals.map(m => ({
+      user_id: userId,
+      event_type: 'achievement',
+      payload: {
+        medal_key: m.key, label: m.label,
+        tier: m.tier, tier_name: m.tierName,
+        tier_color: m.tierColor, points: m.points,
+      },
+    }))
+  );
+
+  return newMedals;
 }
 ```
 
 **Archivos:** `lib/achievements.ts`
 
-### 6.2 — Evaluación automática post-intento
+---
 
-En la función de guardar intento (`log-attempt.tsx`):
-- Tras INSERT/UPDATE en `attempts`, llamar a `evaluateAchievements(userId)`
-- `evaluateAchievements` consulta stats del usuario y compara con condiciones
-- Inserta en `achievements` si se cumple la condición y no existe ya
-- Devuelve array de nuevas medallas obtenidas
+### 6.4 — Schema de base de datos
+
+```sql
+-- ─────────────────────────────────────────────
+-- Tabla de achievements obtenidos
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS achievements (
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  medal_key   text        NOT NULL,   -- "volume_tier_3"
+  category    text        NOT NULL,   -- "volume", "flash"…
+  tier        int         NOT NULL,
+  points      int         NOT NULL,
+  earned_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, medal_key)          -- medallas permanentes no se duplican
+);
+
+CREATE INDEX IF NOT EXISTS idx_achievements_user    ON achievements(user_id);
+CREATE INDEX IF NOT EXISTS idx_achievements_earned  ON achievements(earned_at DESC);
+
+-- ─────────────────────────────────────────────
+-- Puntos totales desnormalizados en profiles
+-- (para ORDER BY rápido en ranking global)
+-- ─────────────────────────────────────────────
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS achievement_points int NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION sync_achievement_points()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE profiles
+  SET achievement_points = (
+    SELECT COALESCE(SUM(points), 0)
+    FROM achievements WHERE user_id = NEW.user_id
+  )
+  WHERE id = NEW.user_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_sync_achievement_points
+  AFTER INSERT ON achievements
+  FOR EACH ROW EXECUTE FUNCTION sync_achievement_points();
+
+-- ─────────────────────────────────────────────
+-- Función de stats (solo bloques de gym)
+-- ─────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION get_user_gym_stats(p_user_id uuid)
+RETURNS json AS $$
+DECLARE result json;
+BEGIN
+  SELECT json_build_object(
+    'gymBlocksCompleted', (
+      SELECT COUNT(DISTINCT a.block_id) FROM attempts a
+      JOIN blocks b ON b.id = a.block_id
+      WHERE a.user_id = p_user_id AND b.owner_type = 'gym'
+        AND a.result != 'not_completed'
+    ),
+    'gymBlocksByDifficulty', json_build_object(
+      'easy', (
+        SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='easy' AND a.result!='not_completed'
+      ),
+      'mid', (
+        SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='mid' AND a.result!='not_completed'
+      ),
+      'advanced', (
+        SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='advanced' AND a.result!='not_completed'
+      ),
+      'pro', (
+        SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
+        WHERE a.user_id=p_user_id AND b.owner_type='gym' AND b.difficulty='pro' AND a.result!='not_completed'
+      )
+    ),
+    'gymFlashes', (
+      SELECT COUNT(DISTINCT a.block_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
+      WHERE a.user_id=p_user_id AND b.owner_type='gym' AND a.result='flash'
+    ),
+    'activeDaysThisMonth', (
+      SELECT COUNT(DISTINCT DATE(a.created_at AT TIME ZONE 'UTC'))
+      FROM attempts a JOIN blocks b ON b.id=a.block_id
+      WHERE a.user_id=p_user_id AND b.owner_type='gym'
+        AND a.result!='not_completed'
+        AND date_trunc('month', a.created_at) = date_trunc('month', NOW())
+    ),
+    'distinctGymsWithCompletion', (
+      SELECT COUNT(DISTINCT b.gym_id) FROM attempts a JOIN blocks b ON b.id=a.block_id
+      WHERE a.user_id=p_user_id AND b.owner_type='gym' AND a.result!='not_completed'
+    )
+  ) INTO result;
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ─────────────────────────────────────────────
+-- Ranking global (consulta SQL directa)
+-- ─────────────────────────────────────────────
+-- Query para el ranking completo:
+-- SELECT p.id, p.name, p.avatar_url, p.achievement_points,
+--   RANK() OVER (ORDER BY p.achievement_points DESC) AS global_rank,
+--   (SELECT a.medal_key FROM achievements a WHERE a.user_id=p.id
+--    ORDER BY a.earned_at DESC LIMIT 1) AS last_medal_key
+-- FROM profiles p
+-- WHERE p.account_type = 'user'
+-- ORDER BY p.achievement_points DESC;
+
+-- ─────────────────────────────────────────────
+-- RLS
+-- ─────────────────────────────────────────────
+ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
+-- Todos pueden ver los achievements (ranking público)
+CREATE POLICY "achievements_select_all" ON achievements
+  FOR SELECT USING (true);
+-- Solo el propio usuario puede insertar
+CREATE POLICY "achievements_insert_own" ON achievements
+  FOR INSERT WITH CHECK (user_id = auth.uid());
+```
+
+**Archivos:** `supabase/migrations/20260326_achievements.sql`
+
+---
+
+### 6.5 — Evaluación automática post-intento
+
+En `app/(app)/blocks/[id]/log-attempt.tsx`, tras INSERT/UPDATE exitoso en `attempts`:
+1. Llamar `const newMedals = await evaluateAchievements(userId)`
+2. Si `newMedals.length > 0` → pasar al estado local para mostrar `AchievementToast`
+3. El toast se encola si hay varias medallas nuevas de golpe
+
+```typescript
+// Ejemplo en log-attempt.tsx
+const handleSave = async () => {
+  // ... INSERT attempt ...
+  const newMedals = await evaluateAchievements(session.user.id);
+  if (newMedals.length > 0) setNewAchievements(newMedals);
+};
+```
 
 **Archivos:** `lib/achievements.ts`, `app/(app)/blocks/[id]/log-attempt.tsx`
 
-### 6.3 — Toast de medalla conseguida
+---
+
+### 6.6 — Toast de medalla conseguida
 
 Crear `components/AchievementToast.tsx`:
-- Modal/overlay animado que aparece cuando se consigue una medalla
-- Icono de medalla + nombre + descripción
-- Auto-cierre a los 3 segundos
+- Aparece desde arriba con animación `slide-in` + ligero bounce
+- Fondo oscuro semitransparente con **borde del color del tier** (`tierColor`)
+- Contenido: icono de medalla (tamaño 32, color tier) + `tierName` en badge + label de la medalla + `+{points} pts` en verde
+- Auto-cierre a los 4 segundos o tap para cerrar anticipado
+- Si hay varias medallas: se muestran en cola, una tras otra con 500ms de separación
+- Vibración suave (`expo-haptics`) al aparecer
+
+```tsx
+// components/AchievementToast.tsx — props
+interface AchievementToastProps {
+  medals: MedalDefinition[];   // cola de medallas nuevas
+  onDismiss: () => void;
+}
+```
 
 **Archivos:** `components/AchievementToast.tsx`
 
-### 6.4 — Pantalla de perfil con medallas
+---
 
-Crear `app/(app)/profile/index.tsx`:
-- Avatar, nombre, stats (bloques completados, flashes, días activos)
-- Grid de medallas (obtenidas en color, no obtenidas en gris)
-- Barra de progreso hacia la siguiente medalla
+### 6.7 — Tab "Logros" en la navegación principal del usuario
 
-**Archivos:** `app/(app)/profile/index.tsx`, `app/(app)/profile/_layout.tsx`
+#### Añadir tab al layout principal
+
+Modificar `app/(app)/_layout.tsx` — añadir tab **"Logros"** entre "Bloques" y "Perfil":
+```
+Tabs del usuario:  Inicio  |  Bloques  |  🏆 Logros  |  Perfil
+```
+- El icono de la tab usa `trophy` (outline/filled según activo)
+- Badge numérico sobre el icono si el usuario tiene medallas nuevas sin ver (campo `last_seen_achievements` en profiles)
+
+#### Crear `app/(app)/achievements/index.tsx` con 3 tabs internas
+
+**Tab 1 — Mis Logros**
+- **Banner superior:** puntos totales del usuario en tipografía grande, llamativa (`fontSize: 48`, `fontWeight: 900`), subtexto "pts acumulados"
+- **Últimas 5 medallas:** scroll horizontal de cards con color de tier, label, fecha obtenida y puntos
+- **Grid de todas las medallas (por categoría):**
+  - Obtenidas: icono con color de tier + label + puntos
+  - No obtenidas: icono en `colors.textMuted` + umbral + barra de progreso `currentValue / threshold`
+  - Agrupadas por categoría con header de sección
+  - Para cada categoría solo se muestran: las ya obtenidas + la **siguiente pendiente** (para no abrumar)
+  - Botón "Ver todas de esta categoría" para expandir
+
+**Tab 2 — Ranking Global**
+- Listado de todos los usuarios ordenado por `achievement_points DESC`
+- **Podio visual** en el top 3: posición en grande, avatar, nombre, puntos
+- **Tu posición** destacada con fondo `colors.primary` si no está visible en el scroll
+- Cada fila: `#rank` · avatar · nombre · puntos · última medalla (icon pequeño con color tier)
+- Filtros: **Top 10** / **Top 100** / **Alrededor de mí** (±10 posiciones)
+- Paginado de 20 en 20 con infinite scroll
+- **Solo cuenta `account_type = 'user'`**, los gyms no aparecen
+
+```sql
+-- Posición del usuario actual
+SELECT global_rank FROM (
+  SELECT id, RANK() OVER (ORDER BY achievement_points DESC) AS global_rank
+  FROM profiles WHERE account_type = 'user'
+) ranked
+WHERE id = auth.uid();
+```
+
+**Tab 3 — Muro de Actividad (feed público de logros)**
+- Feed cronológico en tiempo real de logros conseguidos por **cualquier usuario de la app**
+- Suscripción Supabase Realtime a `activity_feed WHERE event_type = 'achievement'`
+- Cada entrada:
+  - Avatar del usuario (link a su perfil público)
+  - Texto llamativo: `"[Nombre] ha conseguido [label]"` en `fontSize.md bold`
+  - Badge del tier con color (`tierName` sobre fondo `tierColor` suavizado)
+  - `+{points} pts` en verde
+  - Tiempo relativo (hace 2m, hace 1h…)
+- Visual destacado para medallas de tier ≥ 4 (Platino, Diamante, Leyenda): fondo con shimmer / borde brillante
+- Infinite scroll con cursor — los nuevos aparecen al inicio con animación de entrada
+- Botón "Volver arriba" flotante cuando hay nuevos eventos sin ver
+
+**Archivos:** `app/(app)/achievements/index.tsx`, `app/(app)/achievements/_layout.tsx`, `app/(app)/_layout.tsx`
 
 ---
 
-## ⭐ Fase 7 — Valoraciones y comentarios
+### 6.8 — Sección de logros en la pantalla de estadísticas / perfil
 
-> Dependencia: Fase 3 completada
-> Estimación: 3-4h
-
-### 7.1 — Componente de rating con estrellas
-
-Crear `components/StarRating.tsx`:
-- 5 estrellas interactivas (TouchableOpacity)
-- Modo solo-lectura para mostrar media
-- Versión compacta (inline) y versión completa
-
-**Archivos:** `components/StarRating.tsx`
-
-### 7.2 — Rating en detalle de bloque
-
-En `app/(app)/blocks/[id]/index.tsx`:
-- Mostrar media de estrellas (desde `block_avg_rating` view)
-- Si el usuario ya valoró: mostrar su valoración actual editable
-- Si no: mostrar prompt "¿Cómo valoras este bloque?"
-- UPSERT en `block_ratings`
-
-**Archivos:** `app/(app)/blocks/[id]/index.tsx`
-
-### 7.3 — Sección de comentarios en detalle de bloque
-
-En `app/(app)/blocks/[id]/index.tsx`:
-- Lista de últimos 5 comentarios con avatar + nombre + texto
-- Input de texto (máx 300 chars) + botón enviar
-- Botón "Ver todos" → navega a `app/(app)/blocks/[id]/comments.tsx`
-
-**Archivos:** `app/(app)/blocks/[id]/index.tsx`
-
-### 7.4 — Pantalla completa de comentarios
-
-Crear `app/(app)/blocks/[id]/comments.tsx`:
-- Lista completa con FlatList
-- Input fijo en la parte inferior
-- El autor puede borrar sus propios comentarios (swipe)
-
-**Archivos:** `app/(app)/blocks/[id]/comments.tsx`
+En `app/(app)/profile/index.tsx`:
+- **Badge de posición global:** `"🏆 #42 en ranking global"` junto al nombre del usuario
+- **Puntos totales** debajo del nombre/alias
+- **Sección "Últimos logros":** scroll horizontal con las últimas 3-5 medallas (card compacta: icono color tier + label + puntos)
+- Enlace **"Ver todos mis logros →"** navega a la tab Logros
 
 ---
 
-## 🔗 Fase 8 — Liguillas V2 (reutilizando bloques + QR)
+### 6.9 — Resumen de archivos nuevos y modificados
+
+| Archivo | Acción | Descripción |
+|---------|--------|-------------|
+| `lib/achievements.ts` | **NUEVO** | Algoritmo completo: umbrales, puntos, generador, evaluador |
+| `supabase/migrations/20260326_achievements.sql` | **NUEVO** | Tablas, trigger, función SQL de stats y RLS |
+| `components/AchievementToast.tsx` | **NUEVO** | Toast animado con cola de medallas |
+| `app/(app)/achievements/_layout.tsx` | **NUEVO** | Layout de la sección Logros |
+| `app/(app)/achievements/index.tsx` | **NUEVO** | Pantalla Logros: Mis Logros + Ranking Global + Muro |
+| `app/(app)/_layout.tsx` | **MODIFICA** | Añadir tab "Logros" a la navegación principal del usuario |
+| `app/(app)/blocks/[id]/log-attempt.tsx` | **MODIFICA** | Llamar `evaluateAchievements` tras guardar intento |
+| `app/(app)/profile/index.tsx` | **MODIFICA** | Badge de ranking, puntos totales y logros recientes |
+
+---
+
+## 🔗 Fase 7 — Liguillas V2
 
 > Dependencia: Fases 0, 3 completadas
-> Estimación: 7-9h
+> Estado: 🔲 Pendiente
 
-### 8.1 — Flujo de creación de liguilla V2
+---
+
+### Reglas de negocio clave
+
+#### Liguilla de GYM
+- El rocódromo **crea** la liguilla y **gestiona** sus bloques — nunca participa
+- Los bloques de una liguilla de gym son **bloques del catálogo general del gym** (`owner_type='gym'`, `gym_id=auth.uid()`)
+- Los bloques se pueden crear desde **dos puntos de entrada**:
+  1. **Home del gym** (flujo normal) → bloque inmediatamente disponible para resolver
+  2. **Desde la liguilla** → el bloque se inserta en el catálogo general (`blocks`) **pero no se puede resolver** hasta que la liguilla comience (`start_date` alcanzado)
+- La liguilla referencia bloques mediante `league_blocks` (nunca copia)
+- Antes de iniciar la liguilla, el gym puede **buscar bloques de su catálogo** para añadirlos, y también **crear bloques nuevos** directamente desde la liguilla
+- También puede **quitar bloques** de la liguilla (se desvincula de `league_blocks`, el bloque sigue en el catálogo)
+- Una vez iniciada: no se pueden añadir ni quitar bloques
+
+#### Liguilla de USER
+- El usuario **crea bloques nuevos** exclusivos para la liguilla (flujo V1 sin cambios)
+- Los bloques son `owner_type='user'`, `user_id=auth.uid()`, vinculados a la liga vía `league_blocks`
+- Al **finalizar la liguilla**: todos sus bloques se marcan `is_active = false` automáticamente — no se pueden reutilizar
+- El usuario **sí participa** en su propia liguilla (como en V1)
+
+---
+
+### 7.1 — Creación de liguilla (ambos tipos)
 
 Refactor `app/(app)/leagues/create.tsx`:
-- **Cuenta GYM**: al crear, puede añadir bloques de su propio catálogo
-- **Cuenta USER**: al crear, crea bloques nuevos (igual que V1)
-- Validaciones: código de acceso obligatorio si `is_private`, mínimo 4 chars uppercase
+- Formulario común: nombre, premio, privada/pública, código (si privada), fechas, máx. participantes
+- Validaciones: código obligatorio si `is_private`, mínimo 4 chars
+- Al crear con éxito → navegar al detalle de la liguilla `/(app)/leagues/[id]`
+- No hay selector de bloques en la creación — los bloques se gestionan desde el detalle
 
 **Archivos:** `app/(app)/leagues/create.tsx`
 
-### 8.2 — Selector de bloques para liguilla GYM
+---
 
-Crear `app/(app)/leagues/[id]/select-blocks.tsx`:
-- FlatList con los bloques activos del gym
-- Multi-selección con checkbox
-- Filtro por dificultad y sector
-- Botón "Confirmar selección" → INSERT en `league_blocks`
+### 7.2 — Detalle de liguilla (vista creador GYM)
 
-**Archivos:** `app/(app)/leagues/[id]/select-blocks.tsx`
+Refactor `app/(app)/leagues/[id].tsx` para el flujo GYM:
 
-### 8.3 — Detalle de liguilla V2
+#### Sección de bloques (solo antes de iniciar)
+- Lista los bloques vinculados (`league_blocks JOIN blocks`)
+- Dos acciones disponibles:
+  - **"Buscar bloque del catálogo"** → abre buscador inline (ver 7.3)
+  - **"Crear nuevo bloque"** → navega a `/(app)/gym/blocks/add` con parámetro `league_id` para que al guardar se vincule automáticamente a la liguilla
+- Cada bloque listado tiene botón **"Quitar"** (elimina la fila de `league_blocks`, el bloque permanece en catálogo)
 
-Refactor `app/(app)/leagues/[id].tsx`:
-- Bloques obtenidos desde `league_blocks JOIN blocks`
-- Si creador GYM: puede añadir/quitar bloques (antes de iniciar)
-- Si creador USER: puede añadir bloques nuevos (antes de iniciar)
-- **Regla**: el creador GYM no puede participar, solo gestionar
+#### Una vez iniciada
+- Los bloques aparecen en modo lectura
+- Se muestra el ranking parcial si `ranking_visible_during = true`
 
 **Archivos:** `app/(app)/leagues/[id].tsx`
 
-### 8.4 — Añadir bloque a liguilla de usuario (V2)
+---
 
-Refactor `app/(app)/leagues/[id]/add-block.tsx`:
-- Flujo igual que V1 (cámara → datos → guardar)
-- Ahora: INSERT en `blocks` con `owner_type='user'` + INSERT en `league_blocks`
-- El bloque queda vinculado a la liga pero es propiedad del usuario
+### 7.3 — Buscador de bloques del catálogo (GYM)
 
-**Archivos:** `app/(app)/leagues/[id]/add-block.tsx`
+Crear `app/(app)/leagues/[id]/select-blocks.tsx` o implementar como modal/bottom-sheet dentro del detalle:
 
-### 8.5 — Proteger participación en liguillas
+- **Buscador por texto** (identifier del bloque, case-insensitive)
+- **Filtros aplicables** (mismos que en la home del gym):
+  - Dificultad (multiselección con punto de color)
+  - Estilo (multiselección)
+  - Sección
+- Lista los bloques activos del gym que **no están ya vinculados** a esta liguilla
+- Cada resultado tiene botón **"Añadir"** → INSERT en `league_blocks`
+- El botón cambia a **"Añadido ✓"** (deshabilitado) al vincularlo
 
-En el flujo de unirse a liguilla (`app/(app)/leagues/join.tsx`):
-- Verificar que `account_type = 'user'` antes de permitir unirse
+**Archivos:** `app/(app)/leagues/[id]/select-blocks.tsx`
+
+---
+
+### 7.4 — Crear bloque desde una liguilla (GYM)
+
+Adaptar `app/(app)/gym/blocks/add.tsx` para aceptar un parámetro `leagueId` opcional:
+
+```
+/(app)/gym/blocks/add?leagueId=<uuid>
+```
+
+- Si `leagueId` está presente: tras insertar el bloque en `blocks`, insertar también en `league_blocks`
+- El bloque queda en el catálogo general con `is_active = true`, pero **no se puede resolver** hasta que la liguilla comience (la lógica de `log-attempt` ya lo gestiona con `leagueStatus`)
+- Banner informativo en el formulario: _"Este bloque se añadirá a tu catálogo y a la liguilla. Solo podrá resolverse una vez iniciada la liguilla."_
+
+**Archivos:** `app/(app)/gym/blocks/add.tsx`
+
+---
+
+### 7.5 — Detalle de liguilla (vista creador USER)
+
+Flujo sin cambios respecto a V1 salvo:
+- Bloques creados con `owner_type='user'`
+- Al finalizar la liguilla: trigger o función que marca todos los bloques de esa liga como `is_active = false`
+
+#### Trigger de desactivación automática al finalizar
+
+```sql
+-- Función que desactiva bloques de usuario al finalizar su liguilla
+CREATE OR REPLACE FUNCTION deactivate_user_league_blocks()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Solo si la liguilla pasa a tener end_date en el pasado
+  IF NEW.end_date IS NOT NULL AND NEW.end_date <= NOW() THEN
+    UPDATE blocks SET is_active = false, updated_at = NOW()
+    WHERE id IN (
+      SELECT lb.block_id FROM league_blocks lb
+      JOIN blocks b ON b.id = lb.block_id
+      WHERE lb.league_id = NEW.id
+        AND b.owner_type = 'user'
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_deactivate_user_league_blocks
+  AFTER UPDATE ON leagues
+  FOR EACH ROW EXECUTE FUNCTION deactivate_user_league_blocks();
+```
+
+**Archivos:** `app/(app)/leagues/[id].tsx`, `app/(app)/leagues/[id]/add-block.tsx`, migración SQL
+
+---
+
+### 7.6 — Proteger participación en liguillas
+
+- Solo cuentas `USER` pueden unirse como participantes
 - Si es GYM: mostrar mensaje "Los rocódromos no pueden participar en liguillas"
+- El creador GYM no aparece en el ranking de su propia liguilla
 
-**Archivos:** `app/(app)/leagues/join.tsx`
+**Archivos:** `app/(app)/leagues/join.tsx`, `app/(app)/leagues/[id].tsx`
 
-### 8.6 — QR de liguilla + PDF imprimible por email
+---
 
-> Dependencia: liguilla creada (cualquier estado)
-> ⚠️ Requiere: librería `react-native-qrcode-svg` + `expo-print` + `expo-sharing` + Edge Function Supabase + cuenta gratuita en **Resend** (resend.com, 3.000 emails/mes gratis)
+### 7.7 — QR de liguilla + compartir
 
-#### Parte A — QR en pantalla (sin coste, inmediato)
-
-En la pantalla de detalle de liguilla `app/(app)/leagues/[id].tsx`:
-- Nuevo botón **"📲 Mostrar QR"** → abre un modal con el QR a pantalla completa
-- El QR codifica una **deep link** de la app:
-  - Liguilla pública: `climbify://join?league=<id>`
-  - Liguilla privada: `climbify://join?league=<id>&code=<access_code>`
-- El modal tiene:
-  - QR grande y legible
-  - Nombre de la liguilla como título
-  - Badge 🔓/🔒 con indicación de si es pública o privada
-  - Botón **"Compartir enlace"** → `expo-sharing` con el deep link como texto
-  - Botón **"Enviarme el PDF"** → dispara la Parte B
+En el detalle de liguilla:
+- Botón **"Mostrar QR"** → modal con QR a pantalla completa
+- El QR codifica deep link: `climbify://join?league=<id>` (+ `&code=<code>` si privada)
+- Botón **"Compartir enlace"** → `expo-sharing` con el texto del deep link
+- Botón **"Enviarme el PDF"** (opcional, Edge Function + Resend):
+  - Genera PDF con logo + nombre + QR + instrucciones
+  - Envía por email al owner
 
 ```bash
 npx expo install react-native-qrcode-svg react-native-svg
 ```
 
-**Archivos:** `app/(app)/leagues/[id].tsx`, `components/LeagueQRModal.tsx`
+**Archivos:** `components/LeagueQRModal.tsx`, `lib/generateLeaguePDF.ts`, `supabase/functions/send-league-qr/index.ts`, `app/(app)/leagues/[id].tsx`
 
-#### Parte B — PDF imprimible + envío por email
+---
 
-**En el cliente (generación del PDF):**
+### Resumen de flujos
 
-Crear `lib/generateLeaguePDF.ts`:
-- Genera HTML con: logo Climbify, nombre de la liguilla, QR (como imagen SVG/PNG), fechas, instrucciones de unión
-- Usa `expo-print` para convertir el HTML a PDF
-- Usa `expo-sharing` para compartir el PDF directamente desde el móvil (sin necesidad de email)
-
-```typescript
-// Estructura del PDF
-<html>
-  <body style="font-family: sans-serif; text-align: center; padding: 40px">
-    <img src="logo-climbify.png" height="60" />
-    <h1>{{ nombre_liguilla }}</h1>
-    <p>{{ fechas }}</p>
-    <img src="{{ qr_base64 }}" width="250" height="250" />
-    <p>Escanea el QR o usa el código: <strong>{{ access_code }}</strong></p>
-    <p style="color: gray; font-size: 12px">Descarga Climbify en tu móvil para participar</p>
-  </body>
-</html>
 ```
+GYM — Crear liguilla
+  └── Detalle de liguilla (antes de iniciar)
+        ├── "Buscar bloque del catálogo" → buscador con filtros → Añadir/Quitar
+        └── "Crear nuevo bloque" → add.tsx con leagueId → se vincula al guardar
 
-**Para el envío por email (Edge Function + Resend):**
+GYM — Bloque creado desde home
+  └── Disponible para resolver inmediatamente
+  └── Se puede añadir a una liguilla vía buscador
 
-Crear `supabase/functions/send-league-qr/index.ts`:
-```typescript
-// Recibe: league_id, user_email, pdf_base64
-// Usa Resend API para enviar el email con el PDF adjunto
-// Variables de entorno: RESEND_API_KEY
+GYM — Bloque creado desde liguilla
+  └── Entra al catálogo general (is_active=true)
+  └── No se puede resolver hasta que la liguilla comience (leagueStatus != in_progress)
+
+USER — Crear liguilla
+  └── Añade bloques nuevos exclusivos (como V1)
+  └── Al finalizar la liguilla → bloques → is_active=false (trigger automático)
 ```
-
-Instalar Resend:
-```bash
-# Solo para la Edge Function, no en el proyecto React Native
-```
-
-El email enviado contiene:
-- Asunto: "Tu liguilla **{{ nombre }}** está lista 🧗"
-- Cuerpo: resumen de la liguilla + instrucciones
-- Adjunto: PDF con el QR
-
-**Flujo completo:**
-```
-Usuario crea liguilla
-       ↓
-Botón "📲 Mostrar QR" → Modal con QR en pantalla  ← siempre disponible
-       ↓ (opcional)
-Botón "Enviarme el PDF"
-       ↓
-Cliente genera PDF con expo-print
-       ↓
-Llamada a Edge Function con PDF en base64
-       ↓
-Edge Function → Resend API → Email al owner con PDF adjunto
-```
-
-**Configuración necesaria (una sola vez):**
-1. Crear cuenta gratuita en [resend.com](https://resend.com) (3.000 emails/mes gratis)
-2. Obtener API Key
-3. Añadir en Supabase Dashboard → Edge Functions → Secrets: `RESEND_API_KEY=re_xxxx`
-4. Verificar dominio o usar el dominio de prueba de Resend (`onboarding@resend.dev`)
-
-**Archivos:**
-- `components/LeagueQRModal.tsx` — modal con QR a pantalla completa
-- `lib/generateLeaguePDF.ts` — generación del HTML/PDF
-- `supabase/functions/send-league-qr/index.ts` — Edge Function
-- `app/(app)/leagues/[id].tsx` — integrar botón y modal
 
 ---
 
@@ -1464,8 +2161,9 @@ AHORA
 ┌──────────────┐   ┌─────────────────────┐
 │  FASE 5      │   │  FASE 6             │
 │  Rankings    │   │  Achievements       │
-│  del Gym     │   │  (Medallas)         │
-│  ~3-4h       │   │  ~4-5h              │
+│  del Gym     │   │  Ranking Global     │
+│  ~3-4h       │   │  + Muro de Logros   │
+│              │   │  ~7-9h              │
 └──────────────┘   └─────────────────────┘
                           │
               ┌───────────┴────────────┐
@@ -1516,7 +2214,7 @@ AHORA
 | 3 | Bloques de Gym + Filtros + Límite 100 | 5-6h |
 | 4 | Intentos V2 + Scoring | 3-4h |
 | 5 | Rankings del Gym | 3-4h |
-| 6 | Achievements | 4-5h |
+| 6 | Achievements + Ranking Global + Muro de Logros | 7-9h |
 | 7 | Ratings y comentarios | 3-4h |
 | 8 | Liguillas V2 + QR en pantalla + PDF por email | 7-9h |
 | 9 | Social (amigos + liguillas de amigos + feed) | 6-8h |

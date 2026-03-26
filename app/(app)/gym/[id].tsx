@@ -9,8 +9,10 @@ import { supabase } from '../../../lib/supabase'
 import { useTheme } from '../../../lib/ThemeContext'
 import { typography, spacing, radius } from '../../../constants'
 import { LeagueCardPublic, JoinLeagueModal, Icon, BlockCard } from '../../../components'
+import { DIFFICULTY_LABELS, type BlockDifficulty } from '../../../lib/scoring'
+import { fetchBlockAvgRatings } from '../../../lib/ratings'
 
-type Tab = 'info' | 'leagues' | 'ranking'
+type Tab = 'info' | 'leagues' | 'ranking' | 'stats'
 type RankingPeriod = 'global' | 'month' | 'week'
 type PersonalFilter = 'all' | 'pending' | 'done' | 'unattempted'
 
@@ -84,12 +86,24 @@ export default function GymProfileScreen() {
   // ── Bloques del tab Info ──
   const [blocks, setBlocks] = useState<any[]>([])
   const [attempts, setAttempts] = useState<Record<string, any>>({})
+  const [avgRatings, setAvgRatings] = useState<Record<string, number>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [filterDiffs, setFilterDiffs] = useState<Set<string>>(new Set())
   const [filterStyles, setFilterStyles] = useState<Set<string>>(new Set())
   const [filterSections, setFilterSections] = useState<Set<string>>(new Set())
   const [filterPersonal, setFilterPersonal] = useState<PersonalFilter>('all')
+
+  // ── Stats del usuario en este gym ──
+  const [gymStats, setGymStats] = useState<{
+    totalBlocks: number
+    totalFlashes: number
+    totalScore: number
+    myRank: number | null
+    byDifficulty: Record<string, number>
+    byGoes: Record<string, number>
+  } | null>(null)
+  const [statsLoading, setStatsLoading] = useState(false)
 
   useEffect(() => { if (id) loadAll() }, [id, tab, rankPeriod])
 
@@ -123,10 +137,78 @@ export default function GymProfileScreen() {
       ;(attemptsData ?? []).forEach((a: any) => { map[a.block_id] = a })
       setAttempts(map)
     }
+
+    if (blocksData && blocksData.length > 0) {
+      const ratings = await fetchBlockAvgRatings(blocksData.map((b: any) => b.id))
+      setAvgRatings(ratings)
+    }
     setBlocksLoading(false)
   }
 
   useFocusEffect(useCallback(() => { loadBlocks() }, [id, user]))
+
+  async function loadGymStats() {
+    if (!id || !user) return
+    setStatsLoading(true)
+    try {
+      // Bloques del gym
+      const { data: gymBlocks } = await supabase
+        .from('blocks').select('id, difficulty, color')
+        .eq('gym_id', id)
+      const blockIds = (gymBlocks ?? []).map((b: any) => b.id)
+      if (blockIds.length === 0) {
+        setGymStats({ totalBlocks: 0, totalFlashes: 0, totalScore: 0, myRank: null, byDifficulty: {}, byGoes: {} })
+        setStatsLoading(false)
+        return
+      }
+
+      // Intentos del usuario en este gym
+      const { data: attemptsData } = await supabase
+        .from('attempts')
+        .select('block_id, result, number_of_goes, score')
+        .eq('user_id', user.id)
+        .in('block_id', blockIds)
+
+      const solved = (attemptsData ?? []).filter((a: any) => a.result !== 'not_completed')
+      const byDifficulty: Record<string, number> = {}
+      const byGoes: Record<string, number> = {}
+      let totalFlashes = 0
+      let totalScore = 0
+
+      const blockMap: Record<string, any> = {}
+      ;(gymBlocks ?? []).forEach((b: any) => { blockMap[b.id] = b })
+
+      for (const a of solved) {
+        totalScore += a.score
+        const diff = blockMap[a.block_id]?.difficulty
+        if (diff) byDifficulty[diff] = (byDifficulty[diff] ?? 0) + 1
+        const gk = a.number_of_goes === 1 ? 'flash' : a.number_of_goes >= 6 ? '+5' : String(a.number_of_goes)
+        byGoes[gk] = (byGoes[gk] ?? 0) + 1
+        if (a.result === 'flash') totalFlashes++
+      }
+
+      // Posición en el ranking global del gym
+      const { data: rankData } = await supabase
+        .from('gym_rankings')
+        .select('user_id, total_score')
+        .eq('gym_id', id)
+        .order('total_score', { ascending: false })
+
+      let myRank: number | null = null
+      if (rankData) {
+        const idx = rankData.findIndex((r: any) => r.user_id === user.id)
+        if (idx >= 0) myRank = idx + 1
+      }
+
+      setGymStats({ totalBlocks: solved.length, totalFlashes, totalScore, myRank, byDifficulty, byGoes })
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  useFocusEffect(useCallback(() => {
+    if (tab === 'stats') loadGymStats()
+  }, [id, user, tab]))
 
   async function loadAll() {
     setLoading(true)
@@ -353,7 +435,12 @@ export default function GymProfileScreen() {
 
       {/* Tabs */}
       <View style={[styles.tabBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {([['info', 'ℹ️ Info'], ['leagues', '🏆 Liguillas'], ['ranking', '📊 Ranking']] as [Tab, string][]).map(([t, label]) => (
+        {(([
+          ['info', 'Info'],
+          ['leagues', 'Liguillas'],
+          ['ranking', 'Ranking'],
+          ...(isUser ? [['stats', 'Mis stats']] : []),
+        ] as [Tab, string][]).map(([t, label]) => (
           <TouchableOpacity
             key={t}
             style={[styles.tabBtn, tab === t && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
@@ -362,7 +449,7 @@ export default function GymProfileScreen() {
           >
             <Text style={[styles.tabLabel, { color: tab === t ? colors.primary : colors.textMuted }]}>{label}</Text>
           </TouchableOpacity>
-        ))}
+        )))}
       </View>
 
       {loading ? (
@@ -426,6 +513,7 @@ export default function GymProfileScreen() {
                       key={block.id}
                       block={block}
                       attempt={attempts[block.id] ?? null}
+                      avgRating={avgRatings[block.id] ?? null}
                       onPress={() => router.push(`/(app)/blocks/${block.id}`)}
                     />
                   ))}
@@ -527,6 +615,105 @@ export default function GymProfileScreen() {
                     </>
                   )}
                 </View>
+              )}
+            </View>
+          )}
+
+          {/* ── TAB MIS STATS ── */}
+          {tab === 'stats' && isUser && (
+            <View style={styles.tabContent}>
+              {statsLoading ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : !gymStats ? null : (
+                <>
+                  {/* Resumen */}
+                  <View style={styles.statsRow}>
+                    <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                      <Text style={[styles.statValue, { color: colors.primary }]}>{gymStats.totalBlocks}</Text>
+                      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Resueltos</Text>
+                    </View>
+                    <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                      <Text style={[styles.statValue, { color: colors.primary }]}>{gymStats.totalFlashes}</Text>
+                      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Flash</Text>
+                    </View>
+                    <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                      <Text style={[styles.statValue, { color: colors.primary }]}>{gymStats.totalScore}</Text>
+                      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puntos</Text>
+                    </View>
+                  </View>
+
+                  {gymStats.myRank !== null && (
+                    <View style={[styles.rankBadge, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}>
+                      <Icon name="trophy-outline" size={16} color={colors.primary} />
+                      <Text style={[styles.rankBadgeText, { color: colors.primary }]}>
+                        Tu posición en este gym: #{gymStats.myRank}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Por dificultad */}
+                  {Object.keys(gymStats.byDifficulty).length > 0 && (
+                    <View style={[styles.statsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                      <Text style={[styles.statsCardTitle, { color: colors.textSecondary }]}>POR DIFICULTAD</Text>
+                      {(['principiante', 'novato', 'medio', 'avanzado', 'experimentado', 'elite', 'profesional'] as BlockDifficulty[]).map(d => {
+                        const val = gymStats.byDifficulty[d] ?? 0
+                        const maxV = Math.max(1, ...Object.values(gymStats.byDifficulty))
+                        return (
+                          <View key={d} style={styles.barRow}>
+                            <Text style={[styles.barLabel, { color: colors.textMuted }]} numberOfLines={1}>
+                              {DIFFICULTY_LABELS[d]}
+                            </Text>
+                            <View style={styles.barTrackWrap}>
+                              <View style={[styles.barTrack, { backgroundColor: colors.surfaceAlt }]}>
+                                <View style={[styles.barFill, { width: `${(val / maxV) * 100}%` as any, backgroundColor: colors.primary }]} />
+                              </View>
+                            </View>
+                            <Text style={[styles.barValue, { color: colors.textMuted }]}>{val}</Text>
+                          </View>
+                        )
+                      })}
+                    </View>
+                  )}
+
+                  {/* Por pegues */}
+                  {Object.keys(gymStats.byGoes).length > 0 && (
+                    <View style={[styles.statsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                      <Text style={[styles.statsCardTitle, { color: colors.textSecondary }]}>POR PEGUES</Text>
+                      {[
+                        { key: 'flash', label: 'Flash' },
+                        { key: '2', label: '2 pegues' },
+                        { key: '3', label: '3 pegues' },
+                        { key: '4', label: '4 pegues' },
+                        { key: '5', label: '5 pegues' },
+                        { key: '+5', label: '+5 pegues' },
+                      ].map(g => {
+                        const val = gymStats.byGoes[g.key] ?? 0
+                        const maxV = Math.max(1, ...Object.values(gymStats.byGoes))
+                        return (
+                          <View key={g.key} style={styles.barRow}>
+                            <Text style={[styles.barLabel, { color: colors.textMuted }]}>{g.label}</Text>
+                            <View style={styles.barTrackWrap}>
+                              <View style={[styles.barTrack, { backgroundColor: colors.surfaceAlt }]}>
+                                <View style={[styles.barFill, { width: `${(val / maxV) * 100}%` as any, backgroundColor: colors.primary }]} />
+                              </View>
+                            </View>
+                            <Text style={[styles.barValue, { color: colors.textMuted }]}>{val}</Text>
+                          </View>
+                        )
+                      })}
+                    </View>
+                  )}
+
+                  {gymStats.totalBlocks === 0 && (
+                    <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                      <Icon name="bar-chart-outline" size={40} color={colors.textMuted} />
+                      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Sin datos todavía</Text>
+                      <Text style={[{ fontSize: typography.size.sm, color: colors.textMuted, textAlign: 'center' }]}>
+                        Registra resultados en bloques de este rocódromo
+                      </Text>
+                    </View>
+                  )}
+                </>
               )}
             </View>
           )}
@@ -704,5 +891,18 @@ const styles = StyleSheet.create({
   rankName: { flex: 1, fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   rankScore: { fontSize: typography.size.xs },
   rankDivider: { height: 1, marginVertical: 4 },
+  // Stats tab
+  statsRow:       { flexDirection: 'row', gap: spacing.sm },
+  statCard:       { flex: 1, borderRadius: radius.lg, borderWidth: 1, padding: spacing.md, alignItems: 'center', gap: spacing.xs },
+  statValue:      { fontSize: typography.size['2xl'], fontWeight: typography.weight.extrabold },
+  statLabel:      { fontSize: typography.size.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
+  rankBadge:      { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radius.md, borderWidth: 1, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+  rankBadgeText:  { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  statsCard:      { borderRadius: radius.lg, borderWidth: 1, padding: spacing.md, gap: spacing.sm },
+  statsCardTitle: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  barRow:         { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  barLabel:       { width: 90, fontSize: typography.size.sm },
+  barTrackWrap:   { flex: 1 },
+  barValue:       { width: 24, fontSize: typography.size.sm, textAlign: 'right', fontWeight: typography.weight.semibold },
 })
 

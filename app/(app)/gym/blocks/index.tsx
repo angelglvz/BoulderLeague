@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
+import { fetchBlockAvgRatings } from '../../../../lib/ratings'
 import { useSession } from '../../../../hooks'
 import { useTheme } from '../../../../lib/ThemeContext'
 import { typography, spacing, radius } from '../../../../constants'
@@ -39,6 +40,7 @@ export default function GymBlocksScreen() {
   const { colors } = useTheme()
 
   const [blocks, setBlocks] = useState<Block[]>([])
+  const [avgRatings, setAvgRatings] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [activeCount, setActiveCount] = useState(0)
@@ -62,6 +64,10 @@ export default function GymBlocksScreen() {
     ])
     setBlocks(data ?? [])
     setActiveCount(count ?? 0)
+    if (data && data.length > 0) {
+      const ratings = await fetchBlockAvgRatings(data.map((b: Block) => b.id))
+      setAvgRatings(ratings)
+    }
     setLoading(false)
   }, [user, statusFilter])
 
@@ -212,7 +218,7 @@ export default function GymBlocksScreen() {
           renderItem={({ item }) => (
             <View style={styles.blockRow}>
               <View style={{ flex: 1 }}>
-                <BlockCard block={item as any} onPress={() => router.push(`/(app)/blocks/${item.id}`)} />
+                <BlockCard block={item as any} onPress={() => router.push(`/(app)/blocks/${item.id}`)} avgRating={avgRatings[item.id] ?? null} />
               </View>
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}

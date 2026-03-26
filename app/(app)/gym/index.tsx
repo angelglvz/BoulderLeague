@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase'
 import { useTheme } from '../../../lib/ThemeContext'
 import { typography, spacing, radius } from '../../../constants'
 import { Icon, BlockCard } from '../../../components'
+import { fetchBlockAvgRatings } from '../../../lib/ratings'
 
 // ── Constantes de filtro ──────────────────────────────────────
 const DIFFICULTIES = [
@@ -38,6 +39,7 @@ export default function GymHomeScreen() {
 
   const [stats, setStats] = useState<GymStats>({ activeBlocks: 0, attemptsThisWeek: 0 })
   const [blocks, setBlocks] = useState<Block[]>([])
+  const [avgRatings, setAvgRatings] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
@@ -74,6 +76,8 @@ export default function GymHomeScreen() {
     if (blocksRes.data) {
       setBlocks(blocksRes.data)
       setStats(s => ({ ...s, activeBlocks: blocksRes.data.length }))
+      const ratings = await fetchBlockAvgRatings(blocksRes.data.map((b: Block) => b.id))
+      setAvgRatings(ratings)
     }
     setStats(s => ({ ...s, attemptsThisWeek: attemptsRes.count ?? 0 }))
     setLoading(false)
@@ -141,6 +145,7 @@ export default function GymHomeScreen() {
           <BlockCard
             key={block.id}
             block={block as any}
+            avgRating={avgRatings[block.id] ?? null}
             onPress={() => router.push(`/(app)/blocks/${block.id}`)}
           />
         ))}

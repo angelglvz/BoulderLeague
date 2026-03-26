@@ -226,11 +226,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.quickBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push('/(app)/leagues/join')}
+            onPress={() => router.push('/(app)/stats')}
             activeOpacity={0.8}
           >
-            <Icon name="podium-outline" size={22} color={colors.textSecondary} />
-            <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Ranking</Text>
+            <Icon name="bar-chart-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Mis stats</Text>
           </TouchableOpacity>
         </View>
 

@@ -6,19 +6,21 @@
  *
  * base_points (por resultado):
  *   flash          → 10 pts
- *   completed (2)  →  5 pts
- *   completed (3)  →  4 pts
- *   completed (4)  →  3 pts
- *   completed (5)  →  2 pts
- *   completed (>5) →  1 pt
+ *   completed (2)  →  7 pts
+ *   completed (3)  →  5 pts
+ *   completed (4)  →  4 pts
+ *   completed (5)  →  3 pts
+ *   completed (>5) →  2 pts
  *   not_completed  →  0 pts
  *
- * difficulty_bonus (aditivo):
- *   novato         → +0
- *   medio          → +1
- *   avanzado       → +2
- *   experimentado  → +3
- *   profesional    → +4
+ * difficulty_bonus (aditivo, 7 niveles):
+ *   principiante   → +0
+ *   novato         → +2
+ *   medio          → +3
+ *   avanzado       → +4
+ *   experimentado  → +8
+ *   elite          → +9
+ *   profesional    → +10
  */
 
 import type { Database } from '../types/database.types'
@@ -32,23 +34,23 @@ export function calcBasePoints(result: AttemptResult, numberOfGoes: number): num
   if (result === 'not_completed') return 0
   if (result === 'flash') return 10
   // result === 'completed'
-  if (numberOfGoes <= 2) return 5
-  if (numberOfGoes === 3) return 4
-  if (numberOfGoes === 4) return 3
-  if (numberOfGoes === 5) return 2
-  return 1 // > 5 pegues
+  if (numberOfGoes <= 2) return 7
+  if (numberOfGoes === 3) return 5
+  if (numberOfGoes === 4) return 4
+  if (numberOfGoes === 5) return 3
+  return 2 // > 5 pegues
 }
 
-/** Bonus aditivo según dificultad */
+/** Bonus aditivo según dificultad (7 niveles) */
 export function calcDifficultyBonus(difficulty: BlockDifficulty): number {
   const bonuses: Record<BlockDifficulty, number> = {
     principiante:  0,
-    novato:        1,
-    medio:         2,
-    avanzado:      3,
-    experimentado: 4,
-    elite:         5,
-    profesional:   6,
+    novato:        2,
+    medio:         3,
+    avanzado:      4,
+    experimentado: 8,
+    elite:         9,
+    profesional:   10,
   }
   return bonuses[difficulty] ?? 0
 }
