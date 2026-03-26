@@ -78,10 +78,11 @@ export default function GymHomeScreen() {
     if (loading) return <ActivityIndicator color={colors.primary} style={styles.loader} />
     if (blocks.length === 0) {
       return (
-        <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={styles.emptyEmoji}>🧱</Text>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            Aún no tienes bloques. ¡Añade el primero!
+        <View style={[styles.emptyBlocks, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Icon name="grid-outline" size={48} color={colors.textMuted} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aún no hay bloques</Text>
+          <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>
+            Añade bloques con el botón "Añadir bloque" para empezar
           </Text>
         </View>
       )
@@ -271,9 +272,9 @@ const styles = StyleSheet.create({
   quickBtnText: { fontSize: typography.size.xs, fontWeight: typography.weight.bold, color: '#fff', textAlign: 'center' },
   quickBtnTextAlt: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold, textAlign: 'center' },
   loader: { marginTop: spacing.md },
-  emptyCard: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, alignItems: 'center', gap: spacing.xs },
-  emptyEmoji: { fontSize: 32 },
-  emptyText: { fontSize: typography.size.md, textAlign: 'center' },
+  emptyBlocks: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.xl, alignItems: 'center', gap: spacing.sm },
+  emptyText: { fontSize: typography.size.md, fontWeight: typography.weight.semibold, textAlign: 'center' },
+  emptySubtext: { fontSize: typography.size.sm, textAlign: 'center', lineHeight: typography.size.sm * 1.5 },
   blockList: { gap: spacing.sm },
   seeMoreBtn: { borderRadius: radius.md, borderWidth: 1, paddingVertical: spacing.sm, alignItems: 'center' },
   seeMoreText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },

@@ -13,9 +13,6 @@ interface UseProfileReturn {
   refetch: () => Promise<void>
 }
 
-// Cache en memoria para evitar refetch innecesarios
-const profileCache = new Map<string, Profile>()
-
 export function useProfile(): UseProfileReturn {
   const { user } = useSession()
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -23,16 +20,6 @@ export function useProfile(): UseProfileReturn {
   const mountedRef = useRef(true)
 
   async function fetchProfile(userId: string) {
-    // Usar caché si está disponible
-    const cached = profileCache.get(userId)
-    if (cached) {
-      if (mountedRef.current) {
-        setProfile(cached)
-        setLoading(false)
-      }
-      return
-    }
-
     setLoading(true)
     const { data, error } = await supabase
       .from('profiles')
@@ -46,7 +33,7 @@ export function useProfile(): UseProfileReturn {
       console.warn('[useProfile] Error fetching profile:', error.message)
       setProfile(null)
     } else if (data) {
-      profileCache.set(userId, data)
+      console.log('[useProfile] perfil cargado:', data.id, 'account_type:', data.account_type)
       setProfile(data)
     }
     setLoading(false)
@@ -54,8 +41,6 @@ export function useProfile(): UseProfileReturn {
 
   async function refetch() {
     if (!user?.id) return
-    // Limpiar caché para forzar recarga
-    profileCache.delete(user.id)
     await fetchProfile(user.id)
   }
 

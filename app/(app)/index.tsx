@@ -1,9 +1,10 @@
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Modal, Image, ScrollView,
+  TextInput,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession, useProfile } from '../../hooks'
 import { supabase } from '../../lib/supabase'
 import { useTheme } from '../../lib/ThemeContext'
@@ -22,148 +23,167 @@ interface League {
   ranking_visible_during: boolean
 }
 
-interface FavoriteGym {
-  gym_id: string
-  profiles: {
-    id: string
-    name: string
-    gym_location?: string | null
-  } | null
+interface Gym {
+  id: string
+  name: string
+  gym_location?: string | null
   activeBlocks?: number
 }
 
 // ─── HomeScreen ───────────────────────────────────────────────
 export default function HomeScreen() {
   const { user, signOut } = useSession()
-  const { isGym } = useProfile()
+  const { isGym, loading: profileLoading } = useProfile()
   const router = useRouter()
   const { colors, toggleTheme, isDark } = useTheme()
 
   const [leagues, setLeagues] = useState<League[]>([])
-  const [favorites, setFavorites] = useState<FavoriteGym[]>([])
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
 
-  // Si es GYM redirigir a su home
-  useEffect(() => {
-    if (isGym) router.replace('/(app)/gym')
-  }, [isGym])
+  // ── Rocódromos ──
+  const [gymQuery, setGymQuery] = useState('')
+  const [gymResults, setGymResults] = useState<Gym[]>([])
+  const [gymSearchLoading, setGymSearchLoading] = useState(false)
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [favoriteGyms, setFavoriteGyms] = useState<Gym[]>([])
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchData = useCallback(async () => {
+  // Si es GYM redirigir a su home (esperar a que el perfil haya cargado)
+  useEffect(() => {
+    if (!profileLoading && isGym) router.replace('/(app)/gym')
+  }, [isGym, profileLoading])
+
+  // ── Fetch liguillas ──
+  const fetchLeagues = useCallback(async () => {
     if (!user) return
     setLoading(true)
-
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
-
-    const [leaguesRes, favRes] = await Promise.all([
-      // Liguillas activas o finalizadas en los últimos 7 días
-      supabase
-        .from('league_participants')
-        .select('leagues(*)')
-        .eq('user_id', user.id),
-      // Gyms favoritos
-      supabase
-        .from('gym_favorites')
-        .select('gym_id, profiles(id, name, gym_location)')
-        .eq('user_id', user.id),
-    ])
-
-    if (leaguesRes.data) {
-      const all = leaguesRes.data
-        .map((r: any) => r.leagues)
-        .filter(Boolean) as League[]
-      // Filtrar solo activas o finalizadas en los últimos 7 días
-      const filtered = all.filter(l => {
-        if (!l.end_date) return true
-        return new Date(l.end_date) >= new Date(sevenDaysAgo)
-      })
-      setLeagues(filtered)
+    const { data } = await supabase
+      .from('league_participants')
+      .select('leagues(*)')
+      .eq('user_id', user.id)
+    if (data) {
+      const all = data.map((r: any) => r.leagues).filter(Boolean) as League[]
+      setLeagues(all.filter(l => !l.end_date || new Date(l.end_date) >= new Date(sevenDaysAgo)))
     }
-
-    if (favRes.data) {
-      setFavorites(favRes.data as any)
-    }
-
     setLoading(false)
   }, [user])
 
-  useEffect(() => { fetchData() }, [fetchData])
-
-  function renderGymsSection() {
-    if (loading) return <ActivityIndicator color={colors.primary} />
-    if (favorites.length === 0) {
-      return (
-        <TouchableOpacity
-          style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => router.push('/(app)/gyms')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.emptyEmoji}>🏢</Text>
-          <Text style={[styles.emptyCardText, { color: colors.textSecondary }]}>
-            Busca y añade rocódromos favoritos
-          </Text>
-          <Text style={[styles.emptyCardLink, { color: colors.primary }]}>Explorar rocódromos →</Text>
-        </TouchableOpacity>
-      )
+  // ── Fetch favoritos ──
+  const fetchFavorites = useCallback(async () => {
+    if (!user) return
+    const { data } = await supabase
+      .from('gym_favorites')
+      .select('gym_id, profiles(id, name, gym_location)')
+      .eq('user_id', user.id)
+    if (data) {
+      const ids = new Set<string>()
+      const gyms: Gym[] = []
+      for (const row of data as any[]) {
+        if (row.profiles) {
+          ids.add(row.gym_id)
+          // contar bloques activos
+          const { count } = await supabase
+            .from('blocks')
+            .select('id', { count: 'exact', head: true })
+            .eq('gym_id', row.gym_id)
+            .eq('is_active', true)
+          gyms.push({ ...row.profiles, activeBlocks: count ?? 0 })
+        }
+      }
+      setFavorites(ids)
+      setFavoriteGyms(gyms)
     }
-    return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gymScroll}>
-        {favorites.map(fav => fav.profiles ? (
-          <View key={fav.gym_id} style={styles.gymCardWrap}>
-            <GymCard
-              gym={{
-                id: fav.profiles.id,
-                name: fav.profiles.name,
-                gym_location: fav.profiles.gym_location,
-                activeBlocks: fav.activeBlocks ?? 0,
-              }}
-              isFavorite
-            />
-          </View>
-        ) : null)}
-        <TouchableOpacity
-          style={[styles.addGymCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => router.push('/(app)/gyms')}
-          activeOpacity={0.8}
-        >
-          <Icon name="add-circle-outline" size={28} color={colors.primary} />
-          <Text style={[styles.addGymText, { color: colors.primary }]}>Añadir</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    )
+  }, [user])
+
+  useEffect(() => { fetchLeagues(); fetchFavorites() }, [fetchLeagues, fetchFavorites])
+
+  // ── Buscar rocódromos ──
+  const searchGyms = useCallback(async (q: string) => {
+    setGymSearchLoading(true)
+    let query = supabase
+      .from('profiles')
+      .select('id, name, gym_location')
+      .eq('account_type', 'gym')
+      .order('name')
+    if (q.trim()) query = query.or(`name.ilike.%${q}%,gym_location.ilike.%${q}%`)
+    const { data } = await query.limit(20)
+    if (data) {
+      const withBlocks = await Promise.all((data as Gym[]).map(async g => {
+        const { count } = await supabase
+          .from('blocks').select('id', { count: 'exact', head: true })
+          .eq('gym_id', g.id).eq('is_active', true)
+        return { ...g, activeBlocks: count ?? 0 }
+      }))
+      setGymResults(withBlocks)
+    }
+    setGymSearchLoading(false)
+  }, [])
+
+  function handleGymSearch(text: string) {
+    setGymQuery(text)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!text.trim()) { setGymResults([]); return }
+    debounceRef.current = setTimeout(() => searchGyms(text), 300)
   }
 
-  function renderLeaguesSection() {
+  async function toggleFavorite(gym: Gym) {
+    if (!user) return
+    if (favorites.has(gym.id)) {
+      // Quitar de favoritos
+      const { error } = await supabase.from('gym_favorites').delete()
+        .eq('user_id', user.id).eq('gym_id', gym.id)
+      if (!error) {
+        setFavorites(prev => { const s = new Set(prev); s.delete(gym.id); return s })
+        setFavoriteGyms(prev => prev.filter(g => g.id !== gym.id))
+      }
+    } else {
+      // Añadir a favoritos — upsert para evitar 409 si ya existe
+      const { error } = await supabase.from('gym_favorites')
+        .upsert({ user_id: user.id, gym_id: gym.id }, { onConflict: 'user_id,gym_id', ignoreDuplicates: true })
+      if (!error) {
+        setFavorites(prev => new Set(prev).add(gym.id))
+        // Añadir a la lista de favoritos si no está ya
+        setFavoriteGyms(prev => prev.find(g => g.id === gym.id) ? prev : [...prev, gym])
+      }
+    }
+  }
+
+  // ── Render liguillas ──
+  function renderLeagues() {
     if (loading) return <ActivityIndicator color={colors.primary} style={styles.loader} />
     if (leagues.length === 0) {
       return (
         <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={styles.emptyEmoji}>🏔️</Text>
-          <Text style={[styles.emptyCardText, { color: colors.textSecondary }]}>
-            Aún no participas en ninguna liguilla
-          </Text>
-          <Text style={[styles.emptyCardSub, { color: colors.textMuted }]}>
-            Crea una nueva o únete con un código
-          </Text>
+          <Icon name="trophy-outline" size={40} color={colors.textMuted} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aún no participas en ninguna liguilla</Text>
+          <Text style={[styles.emptySub, { color: colors.textMuted }]}>Crea una nueva o únete con un código</Text>
         </View>
       )
     }
+    return <View style={styles.leagueList}>{leagues.map(item => <LeagueCard key={item.id} league={item} />)}</View>
+  }
+
+  if (profileLoading) {
     return (
-      <View style={styles.leagueList}>
-        {leagues.map(item => <LeagueCard key={item.id} league={item} />)}
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     )
   }
+
+  // Lista a mostrar en la sección rocódromos:
+  // si hay búsqueda activa → resultados de búsqueda; si no → favoritos
+  const showSearchResults = gymQuery.trim().length > 0
+  const gymsToShow = showSearchResults ? gymResults : favoriteGyms
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
         <Image
-          source={isDark
-            ? require('../../assets/logo-climbify.png')
-            : require('../../assets/logo-climbify-light.png')
-          }
+          source={isDark ? require('../../assets/logo-climbify.png') : require('../../assets/logo-climbify-light.png')}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -181,70 +201,97 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Acciones */}
-        <View style={styles.actions}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+        {/* ── Accesos rápidos (igual que gym) ── */}
+        <View style={styles.quickActions}>
           <TouchableOpacity
-            style={[styles.buttonPrimary, { backgroundColor: colors.primary }]}
+            style={[styles.quickBtn, { backgroundColor: colors.primary }]}
             onPress={() => router.push('/(app)/leagues/create')}
             activeOpacity={0.8}
           >
-            <Icon name="add-circle-outline" size={16} color={colors.textInverse} style={{ marginRight: 4 }} />
-            <Text style={[styles.buttonPrimaryText, { color: colors.textInverse }]}>Nueva liguilla</Text>
+            <Icon name="trophy-outline" size={22} color="#fff" />
+            <Text style={styles.quickBtnText}>Nueva liguilla</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.buttonSecondary, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[styles.quickBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => router.push('/(app)/leagues/join')}
             activeOpacity={0.8}
           >
-            <Icon name="enter-outline" size={16} color={colors.textSecondary} style={{ marginRight: 4 }} />
-            <Text style={[styles.buttonSecondaryText, { color: colors.textSecondary }]}>Unirse con código</Text>
+            <Icon name="enter-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Unirse con código</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(app)/leagues/join')}
+            activeOpacity={0.8}
+          >
+            <Icon name="podium-outline" size={22} color={colors.textSecondary} />
+            <Text style={[styles.quickBtnTextAlt, { color: colors.textSecondary }]}>Ranking</Text>
           </TouchableOpacity>
         </View>
 
-        {/* ── Sección: Mis gyms favoritos ── */}
+        {/* ── Sección: Rocódromos ── */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Mis rocódromos</Text>
-            <TouchableOpacity onPress={() => router.push('/(app)/gyms')}>
-              <Text style={[styles.sectionLink, { color: colors.primary }]}>Ver todos →</Text>
-            </TouchableOpacity>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Rocódromos</Text>
+
+          {/* Buscador inline */}
+          <View style={[styles.searchBar, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+            <Icon name="search-outline" size={16} color={colors.textMuted} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.textPrimary }]}
+              placeholder="Buscar por nombre o ciudad..."
+              placeholderTextColor={colors.textMuted}
+              value={gymQuery}
+              onChangeText={handleGymSearch}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {gymQuery.length > 0 && (
+              <TouchableOpacity onPress={() => { setGymQuery(''); setGymResults([]) }}>
+                <Icon name="close-circle-outline" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
           </View>
 
-          {loading ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : renderGymsSection()}
+          {/* Resultados / Favoritos */}
+          {gymSearchLoading ? (
+            <ActivityIndicator color={colors.primary} style={styles.loader} />
+          ) : gymsToShow.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Icon name="business-outline" size={40} color={colors.textMuted} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                {showSearchResults ? 'No se encontraron rocódromos' : 'Aún no tienes rocódromos favoritos'}
+              </Text>
+              <Text style={[styles.emptySub, { color: colors.textMuted }]}>
+                {showSearchResults ? 'Prueba con otro nombre o ciudad' : 'Busca un rocódromo y márcalo con ⭐'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.gymList}>
+              {gymsToShow.map(gym => (
+                <GymCard
+                  key={gym.id}
+                  gym={gym}
+                  isFavorite={favorites.has(gym.id)}
+                  onToggleFavorite={() => toggleFavorite(gym)}
+                  onPress={() => router.push(`/(app)/gym/${gym.id}` as any)}
+                />
+              ))}
+            </View>
+          )}
         </View>
 
         {/* ── Sección: Mis liguillas ── */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Mis liguillas</Text>
-          {renderLeaguesSection()}
-        </View>
-
-        {/* ── Sección: Descubrir ── */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Descubrir</Text>
-          <TouchableOpacity
-            style={[styles.discoverBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push('/(app)/gyms')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.discoverEmoji}>🔍</Text>
-            <View>
-              <Text style={[styles.discoverTitle, { color: colors.textPrimary }]}>Explorar rocódromos</Text>
-              <Text style={[styles.discoverSub, { color: colors.textMuted }]}>
-                Encuentra tu rocódromo y únete a sus liguillas
-              </Text>
-            </View>
-            <Icon name="chevron-forward-outline" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
+          {renderLeagues()}
         </View>
 
         <View style={{ height: spacing.xl }} />
       </ScrollView>
 
-      {/* ── Modal de ajustes ── */}
+      {/* ── Modal ajustes ── */}
       <Modal visible={showSettings} transparent animationType="fade" onRequestClose={() => setShowSettings(false)}>
         <TouchableOpacity
           style={[styles.overlay, { backgroundColor: colors.overlay }]}
@@ -269,7 +316,9 @@ export default function HomeScreen() {
                   key={label}
                   style={[
                     styles.themeOption,
-                    active ? [styles.themeOptionActive, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }] : { borderColor: 'transparent' },
+                    active
+                      ? { backgroundColor: colors.primaryMuted, borderColor: colors.primary }
+                      : { borderColor: 'transparent' },
                   ]}
                   onPress={() => { if (!active) toggleTheme() }}
                   activeOpacity={0.8}
@@ -299,92 +348,40 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: spacing.xl, paddingHorizontal: spacing.lg },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
   logo: { height: 52, width: 213 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: radius.md,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-  },
+  iconBtn: { width: 36, height: 36, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   signOutBtn: { borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 6 },
   signOut: { fontSize: typography.size.sm },
-  actions: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
-  buttonPrimary: {
-    flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', borderRadius: radius.md, paddingVertical: spacing.sm,
-  },
-  buttonPrimaryText: { fontWeight: typography.weight.bold, fontSize: typography.size.md },
-  buttonSecondary: {
-    flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', borderRadius: radius.md, paddingVertical: spacing.sm, borderWidth: 1,
-  },
-  buttonSecondaryText: { fontWeight: typography.weight.medium, fontSize: typography.size.md },
+  quickActions: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  quickBtn: { flex: 1, borderRadius: radius.md, borderWidth: 1, padding: spacing.sm, alignItems: 'center', gap: 4 },
+  quickBtnText: { fontSize: typography.size.xs, fontWeight: typography.weight.bold, color: '#fff', textAlign: 'center' },
+  quickBtnTextAlt: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold, textAlign: 'center' },
   section: { marginBottom: spacing.xl, gap: spacing.sm },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: {
-    fontSize: typography.size.sm, fontWeight: typography.weight.semibold,
-    textTransform: 'uppercase', letterSpacing: 0.5,
-  },
-  sectionLink: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
-  gymScroll: { marginHorizontal: -spacing.lg, paddingHorizontal: spacing.lg },
-  gymCardWrap: { width: 240, marginRight: spacing.sm },
-  addGymCard: {
-    width: 100, borderRadius: radius.lg, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-    gap: 4, paddingVertical: spacing.lg, marginRight: spacing.lg,
-  },
-  addGymText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
-  emptyCard: {
+  sectionTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     borderRadius: radius.lg, borderWidth: 1,
-    padding: spacing.lg, alignItems: 'center', gap: spacing.xs,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
   },
-  emptyEmoji: { fontSize: 32 },
-  emptyCardText: { fontSize: typography.size.md, fontWeight: typography.weight.medium, textAlign: 'center' },
-  emptyCardSub: { fontSize: typography.size.sm, textAlign: 'center' },
-  emptyCardLink: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  searchInput: { flex: 1, fontSize: typography.size.sm },
+  gymList: { gap: spacing.sm },
+  emptyCard: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, alignItems: 'center', gap: spacing.xs },
+  emptyText: { fontSize: typography.size.md, fontWeight: typography.weight.medium, textAlign: 'center' },
+  emptySub: { fontSize: typography.size.sm, textAlign: 'center' },
   loader: { marginTop: spacing.md },
   leagueList: { gap: spacing.sm },
-  discoverBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: radius.lg, borderWidth: 1,
-    padding: spacing.md, gap: spacing.md,
-  },
-  discoverEmoji: { fontSize: 28 },
-  discoverTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  discoverSub: { fontSize: typography.size.sm },
   overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
-  settingsCard: {
-    width: '100%', maxWidth: 360, borderRadius: radius.xl,
-    borderWidth: 1, padding: spacing.lg, gap: spacing.md,
-  },
+  settingsCard: { width: '100%', maxWidth: 360, borderRadius: radius.xl, borderWidth: 1, padding: spacing.lg, gap: spacing.md },
   settingsHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   settingsTitle: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
-  settingsLabel: {
-    fontSize: typography.size.sm, fontWeight: typography.weight.semibold,
-    textTransform: 'uppercase', letterSpacing: 0.5,
-  },
-  themeRow: {
-    flexDirection: 'row', borderRadius: radius.lg,
-    borderWidth: 1, padding: spacing.xs, gap: spacing.xs,
-  },
-  themeOption: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: spacing.sm, borderRadius: radius.md,
-    borderWidth: 1.5, gap: 4, position: 'relative',
-  },
-  themeOptionActive: {},
+  settingsLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  themeRow: { flexDirection: 'row', borderRadius: radius.lg, borderWidth: 1, padding: spacing.xs, gap: spacing.xs },
+  themeOption: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 1.5, gap: 4, position: 'relative' },
   themeEmoji: { fontSize: 22 },
   themeLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
-  themeCheck: {
-    position: 'absolute', top: 6, right: 6,
-    width: 16, height: 16, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  themeCheck: { position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   closeBtn: { borderRadius: radius.md, borderWidth: 1, paddingVertical: spacing.sm, alignItems: 'center', marginTop: spacing.xs },
   closeBtnText: { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
 })

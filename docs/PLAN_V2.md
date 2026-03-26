@@ -6,6 +6,34 @@
 
 ---
 
+## 🎨 Directrices de diseño visual
+
+> Estas reglas aplican a **todas** las pantallas y componentes. Deben respetarse en cada nueva implementación.
+
+### Estilo general
+- **Minimalista ante todo.** Menos es más. Si un elemento no aporta información funcional, se elimina.
+- **Sin iconos decorativos con color.** Los iconos se usan en tono neutro (`textMuted` o `textSecondary`). Solo se usa color en iconos de acción primaria (ej: botón principal) o en estados de dato relevante (ej: estrella de favorito en amarillo `#F5C518`).
+- **Sin emojis como iconos de UI.** Los emojis están permitidos únicamente en contenido generado por el usuario o en ilustraciones de estado vacío. No se usan como iconos de botones ni de secciones.
+- **Textos cortos y directos.** Los labels de botones y secciones deben ser concisos (máx. 2-3 palabras). Evitar frases explicativas dentro de botones.
+- **Jerarquía por tipografía, no por color.** Diferenciar niveles de importancia usando `fontWeight` y `fontSize`, no colores distintos.
+
+### Componentes
+- **Botones de acción rápida** (quick actions): icono + texto corto, sin color de fondo en los secundarios — usar `colors.surface` con borde `colors.border`.
+- **Cards**: fondo `colors.surface`, borde `colors.border` de 1px, `borderRadius: radius.lg`. Sin sombras llamativas.
+- **Estados vacíos**: icono outline en `colors.textMuted` (tamaño 40-48), texto en `colors.textSecondary`, subtexto en `colors.textMuted`. Sin emojis grandes.
+- **Secciones**: título en `colors.textSecondary`, `fontSize.sm`, `uppercase`, `letterSpacing: 0.5`. Sin iconos de sección.
+- **Tabs de navegación interna**: texto plano, tab activo con fondo `colors.primary` y texto `colors.textInverse`. Sin iconos en las tabs.
+
+### Lo que NO hacer
+- ❌ Botones con degradados o múltiples colores
+- ❌ Iconos de colores distintos al tema (rojo, verde, azul brillante) salvo estados de error/éxito
+- ❌ Emojis en headers, labels o botones
+- ❌ Más de 3 colores distintos visibles simultáneamente en una pantalla
+- ❌ Textos largos o explicativos dentro de botones o tabs
+
+---
+
+
 ## 📍 Estado de partida (MVP completado)
 
 - ✅ Auth (registro, login, sesión persistida, logout)
@@ -15,6 +43,25 @@
 - ✅ Ranking en tiempo real con Realtime
 - ✅ Temas claro/oscuro completo
 - ✅ EAS Build configurado (bundle ID, keystore, eas.json)
+
+---
+
+## 📍 Estado actual (2026-03-26)
+
+| Fase | Estado |
+|------|--------|
+| Fase 0 — Reset DB y schema V2 | ✅ Completada |
+| Fase 1 — Registro con tipo de cuenta | ✅ Completada |
+| Fase 2 — Home diferenciado por tipo | ✅ Completada |
+| Fase 3 — Bloques de Gym | 🔲 Pendiente |
+| Fase 4 en adelante | 🔲 Pendiente |
+
+> **Notas de implementación real (vs. plan original):**
+> - 1.1: Los botones de tipo se movieron al formulario de registro (tabs), no a welcome
+> - 1.2: Registro tiene tabs Escalador/Rocódromo + campo `alias` para usuarios + selector de país y ciudad para gyms
+> - 2.1: Home USER tiene buscador de rocódromos integrado con estrella de favorito inline (sin navegar a pantalla separada)
+> - 2.5/2.6: El buscador vive directamente en el home del usuario, no en pantalla separada
+> - RLS: Las políticas no estaban aplicadas en producción — se corrigió con `fix_all_rls_policies.sql`
 
 ---
 
@@ -56,12 +103,12 @@ User (cuenta personal)
 
 ---
 
-## 🗄️ Fase 0 — Reset de base de datos y nuevo schema V2
+## 🗄️ Fase 0 — Reset de base de datos y nuevo schema V2 ✅ COMPLETADA
 
 > ⚠️ ANTES de empezar: hacer backup de datos de desarrollo si los hay, luego reset completo.
 > Estimación: 2-3h
 
-### 0.1 — Nuevo schema SQL completo
+### 0.1 — Nuevo schema SQL completo ✅
 
 Crear `schema_v2.sql` y ejecutarlo en Supabase (SQL Editor → Run):
 
@@ -388,7 +435,7 @@ GROUP BY block_id;
 - Reemplazar `schema.sql` con `schema_v2.sql`
 - Actualizar `types/database.types.ts` con los nuevos tipos
 
-### 0.2 — Políticas RLS V2
+### 0.2 — Políticas RLS V2 ✅
 
 ```sql
 -- Habilitar RLS en todas las tablas
@@ -492,13 +539,13 @@ CREATE POLICY "fl_insert" ON feed_likes FOR INSERT WITH CHECK (user_id = auth.ui
 CREATE POLICY "fl_delete" ON feed_likes FOR DELETE USING (user_id = auth.uid());
 ```
 
-### 0.3 — Storage bucket actualizado
+### 0.3 — Storage bucket actualizado ✅
 
 En Supabase Storage:
 - Renombrar/recrear bucket `block-photos` con acceso público
 - Añadir bucket `avatars` con acceso público
 
-### 0.4 — Actualizar `types/database.types.ts`
+### 0.4 — Actualizar `types/database.types.ts` ✅
 
 Regenerar tipos con:
 ```bash
@@ -506,7 +553,7 @@ NODE_TLS_REJECT_UNAUTHORIZED=0 npx supabase gen types typescript --project-id <p
 ```
 O actualizar manualmente los tipos para reflejar las nuevas tablas.
 
-### 0.5 — Actualizar `lib/scoring.ts`
+### 0.5 — Actualizar `lib/scoring.ts` ✅
 
 Reescribir con la nueva fórmula V2:
 ```
@@ -520,12 +567,12 @@ bonus:        novato=0, medio=1, avanzado=2, experimentado=3, profesional=4
 
 ---
 
-## 👤 Fase 1 — Registro con tipo de cuenta (USER / GYM)
+## 👤 Fase 1 — Registro con tipo de cuenta (USER / GYM) ✅ COMPLETADA
 
 > Dependencia: Fase 0 completada
 > Estimación: 3-4h
 
-### 1.1 — Pantalla de bienvenida con elección de tipo de cuenta
+### 1.1 — Pantalla de bienvenida con elección de tipo de cuenta ✅
 
 Modificar `app/(auth)/welcome.tsx`:
 - Añadir dos botones grandes: **"Soy escalador 🧗"** y **"Soy un rocódromo 🏢"**
@@ -533,7 +580,7 @@ Modificar `app/(auth)/welcome.tsx`:
 
 **Archivos:** `app/(auth)/welcome.tsx`
 
-### 1.2 — Formulario de registro adaptado al tipo de cuenta
+### 1.2 — Formulario de registro adaptado al tipo de cuenta ✅
 
 Modificar `app/(auth)/register.tsx`:
 - Si `account_type = 'user'`: formulario actual (nombre, email, contraseña)
@@ -542,7 +589,7 @@ Modificar `app/(auth)/register.tsx`:
 
 **Archivos:** `app/(auth)/register.tsx`
 
-### 1.3 — Trigger Supabase: crear perfil automáticamente al registrarse
+### 1.3 — Trigger Supabase: crear perfil automáticamente al registrarse ✅
 
 Ejecutar en Supabase SQL Editor:
 ```sql
@@ -564,7 +611,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 ```
 
-### 1.4 — Hook `useProfile` con tipo de cuenta
+### 1.4 — Hook `useProfile` con tipo de cuenta ✅
 
 Crear `hooks/useProfile.ts`:
 - Devuelve el perfil completo del usuario autenticado
@@ -573,7 +620,7 @@ Crear `hooks/useProfile.ts`:
 
 **Archivos:** `hooks/useProfile.ts`, `hooks/index.ts`
 
-### 1.5 — Proteger rutas según tipo de cuenta
+### 1.5 — Proteger rutas según tipo de cuenta ✅
 
 Modificar `app/(app)/_layout.tsx`:
 - Leer `account_type` del perfil
@@ -584,12 +631,12 @@ Modificar `app/(app)/_layout.tsx`:
 
 ---
 
-## 🏢 Fase 2 — Home diferenciado por tipo de cuenta
+## 🏢 Fase 2 — Home diferenciado por tipo de cuenta ✅ COMPLETADA
 
 > Dependencia: Fase 1 completada
 > Estimación: 5-6h
 
-### 2.1 — Home para USER
+### 2.1 — Home para USER ✅
 
 Modificar `app/(app)/index.tsx` (vista de usuario):
 - **Sección 1 — Mis gyms favoritos**: scroll horizontal de `GymCard` con acceso directo
@@ -628,7 +675,7 @@ ORDER BY l.end_date DESC NULLS LAST;
 
 **Archivos:** `app/(app)/index.tsx`
 
-### 2.2 — Home para GYM
+### 2.2 — Home para GYM ✅
 
 Crear `app/(app)/gym/index.tsx`:
 - Resumen: nº de bloques activos (con indicador visual del límite: X/100), intentos esta semana
@@ -637,7 +684,7 @@ Crear `app/(app)/gym/index.tsx`:
 
 **Archivos:** `app/(app)/gym/index.tsx`, `app/(app)/gym/_layout.tsx`
 
-### 2.3 — Pantalla de perfil de gym (pública)
+### 2.3 — Pantalla de perfil de gym (pública) ✅
 
 Crear `app/(app)/gym/[id].tsx` con **3 tabs**:
 
@@ -674,7 +721,7 @@ Crear `app/(app)/gym/[id].tsx` con **3 tabs**:
 
 **Archivos:** `app/(app)/gym/[id].tsx`
 
-### 2.4 — Componente `GymCard`
+### 2.4 — Componente `GymCard` ✅
 
 Crear `components/GymCard.tsx`:
 - Nombre del gym, ubicación
@@ -684,7 +731,7 @@ Crear `components/GymCard.tsx`:
 
 **Archivos:** `components/GymCard.tsx`, `components/index.ts`
 
-### 2.5 — Buscador de rocódromos
+### 2.5 — Buscador de rocódromos ✅
 
 > ⚠️ **Solo accesible para cuentas USER**
 
@@ -697,7 +744,7 @@ Crear `app/(app)/gyms/search.tsx`:
 
 **Archivos:** `app/(app)/gyms/search.tsx`, `app/(app)/gyms/_layout.tsx`
 
-### 2.6 — Listado de todos los rocódromos
+### 2.6 — Listado de todos los rocódromos ✅
 
 > ⚠️ **Solo accesible para cuentas USER**
 
@@ -709,7 +756,7 @@ Crear `app/(app)/gyms/index.tsx`:
 
 **Archivos:** `app/(app)/gyms/index.tsx`
 
-### 2.7 — Componente `LeagueCardPublic` con badge de visibilidad
+### 2.7 — Componente `LeagueCardPublic` con badge de visibilidad ✅
 
 Crear `components/LeagueCardPublic.tsx` (diferente al `LeagueCard` del MVP, orientado a vista de terceros):
 - Nombre de la liguilla
@@ -726,7 +773,7 @@ Crear `components/LeagueCardPublic.tsx` (diferente al `LeagueCard` del MVP, orie
 
 **Archivos:** `components/LeagueCardPublic.tsx`, `components/index.ts`
 
-### 2.8 — Modal "Unirse con código" reutilizable
+### 2.8 — Modal "Unirse con código" reutilizable ✅
 
 Crear `components/JoinLeagueModal.tsx`:
 - Input de código de acceso (uppercase automático, mín. 4 chars)

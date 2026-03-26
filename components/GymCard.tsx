@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
 import { typography, spacing, radius } from '../constants'
 import { useTheme } from '../lib/ThemeContext'
+import { Icon } from './Icon'
 
 interface Props {
   gym: {
@@ -12,9 +13,10 @@ interface Props {
   }
   isFavorite?: boolean
   onPress?: () => void
+  onToggleFavorite?: () => void
 }
 
-export function GymCard({ gym, isFavorite = false, onPress }: Props) {
+export function GymCard({ gym, isFavorite = false, onPress, onToggleFavorite }: Props) {
   const router = useRouter()
   const { colors } = useTheme()
 
@@ -43,8 +45,18 @@ export function GymCard({ gym, isFavorite = false, onPress }: Props) {
             </Text>
           ) : null}
         </View>
-        {isFavorite && (
-          <Text style={styles.star}>⭐</Text>
+        {onToggleFavorite && (
+          <TouchableOpacity
+            onPress={e => { e.stopPropagation?.(); onToggleFavorite() }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Icon
+              name={isFavorite ? 'star' : 'star-outline'}
+              size={22}
+              color={isFavorite ? '#F5C518' : colors.textMuted}
+            />
+          </TouchableOpacity>
         )}
       </View>
 
@@ -70,37 +82,13 @@ export function GymCard({ gym, isFavorite = false, onPress }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    gap: spacing.sm,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
+  card: { borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, gap: spacing.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   info: { flex: 1, gap: 2 },
-  name: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
-  },
-  location: {
-    fontSize: typography.size.sm,
-  },
-  star: { fontSize: 18 },
+  name: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  location: { fontSize: typography.size.sm },
   blocksRow: { gap: 4 },
   blocksLabel: { fontSize: typography.size.xs },
-  barTrack: {
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  barFill: {
-    height: 4,
-    borderRadius: 2,
-  },
+  barTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  barFill: { height: 4, borderRadius: 2 },
 })
-

@@ -13,40 +13,91 @@ import {
   Alert,
   ScrollView,
   Image,
+  Modal,
+  FlatList,
 } from 'react-native'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { typography, spacing, radius } from '../../constants'
 import { useTheme } from '../../lib/ThemeContext'
 import { supabase } from '../../lib/supabase'
 
 type AccountType = 'user' | 'gym'
 
+// Lista de países con código y nombre
+const COUNTRIES = [
+  { code: 'ES', name: 'España' },
+  { code: 'FR', name: 'Francia' },
+  { code: 'DE', name: 'Alemania' },
+  { code: 'IT', name: 'Italia' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'GB', name: 'Reino Unido' },
+  { code: 'US', name: 'Estados Unidos' },
+  { code: 'MX', name: 'México' },
+  { code: 'AR', name: 'Argentina' },
+  { code: 'CO', name: 'Colombia' },
+  { code: 'CL', name: 'Chile' },
+  { code: 'PE', name: 'Perú' },
+  { code: 'BR', name: 'Brasil' },
+  { code: 'CH', name: 'Suiza' },
+  { code: 'AT', name: 'Austria' },
+  { code: 'BE', name: 'Bélgica' },
+  { code: 'NL', name: 'Países Bajos' },
+  { code: 'PL', name: 'Polonia' },
+  { code: 'CZ', name: 'República Checa' },
+  { code: 'SK', name: 'Eslovaquia' },
+  { code: 'SI', name: 'Eslovenia' },
+  { code: 'HR', name: 'Croacia' },
+  { code: 'GR', name: 'Grecia' },
+  { code: 'RO', name: 'Rumanía' },
+  { code: 'HU', name: 'Hungría' },
+  { code: 'NO', name: 'Noruega' },
+  { code: 'SE', name: 'Suecia' },
+  { code: 'FI', name: 'Finlandia' },
+  { code: 'DK', name: 'Dinamarca' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'JP', name: 'Japón' },
+  { code: 'KR', name: 'Corea del Sur' },
+  { code: 'CN', name: 'China' },
+  { code: 'IN', name: 'India' },
+  { code: 'ZA', name: 'Sudáfrica' },
+  { code: 'CA', name: 'Canadá' },
+]
+
 export default function RegisterScreen() {
   const router = useRouter()
   const { colors, isDark } = useTheme()
-  const params = useLocalSearchParams<{ account_type?: string }>()
-  const accountType: AccountType = params.account_type === 'gym' ? 'gym' : 'user'
 
+  const [accountType, setAccountType] = useState<AccountType>('user')
   const isGym = accountType === 'gym'
 
+  // Campos comunes
   const [name, setName] = useState('')
-  const [location, setLocation] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
+
+  // Campos usuario
+  const [nick, setNick] = useState('')
+
+  // Campos gimnasio
+  const [country, setCountry] = useState('')
+  const [city, setCity] = useState('')
+  const [countryModalVisible, setCountryModalVisible] = useState(false)
+  const [countrySearch, setCountrySearch] = useState('')
+
   const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<{
-    name?: string
-    location?: string
-    email?: string
-    password?: string
-    passwordConfirm?: string
-  }>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const filteredCountries = COUNTRIES.filter(c =>
+    c.name.toLowerCase().includes(countrySearch.toLowerCase())
+  )
 
   function validate() {
-    const e: typeof errors = {}
+    const e: Record<string, string> = {}
     if (!name.trim()) e.name = isGym ? 'El nombre del rocódromo es obligatorio' : 'El nombre es obligatorio'
-    if (isGym && !location.trim()) e.location = 'La ubicación es obligatoria'
+    if (!isGym && !nick.trim()) e.nick = 'El alias es obligatorio'
+    if (isGym && !country) e.country = 'El país es obligatorio'
+    if (isGym && !city.trim()) e.city = 'La ciudad es obligatoria'
     if (!email.trim()) e.email = 'El email es obligatorio'
     else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Email no válido'
     if (!password) e.password = 'La contraseña es obligatoria'
@@ -67,13 +118,15 @@ export default function RegisterScreen() {
         data: {
           name,
           account_type: accountType,
-          ...(isGym && { gym_location: location }),
+          ...(!isGym && { nick }),
+          ...(isGym && { gym_location: `${city}, ${country}` }),
+          ...(isGym && { gym_country: country }),
+          ...(isGym && { gym_city: city }),
         },
       },
     })
     setLoading(false)
     if (error) {
-      // Traducir los mensajes más comunes de Supabase
       const msg = error.message.toLowerCase()
       let friendly = error.message
       if (msg.includes('already registered') || msg.includes('user already exists')) {
@@ -116,23 +169,46 @@ export default function RegisterScreen() {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={[styles.title, { color: colors.textPrimary }]}>
-              {isGym ? 'Registrar rocódromo' : 'Crear cuenta'}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {isGym ? 'Gestiona tus bloques y liguillas 🏢' : 'Únete a Climbify 🧗'}
-            </Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Crear cuenta</Text>
           </View>
 
-          {/* Badge de tipo de cuenta */}
-          <View style={[styles.typeBadge, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}>
-            <Text style={[styles.typeBadgeText, { color: colors.primary }]}>
-              {isGym ? '🏢 Cuenta de rocódromo' : '🧗 Cuenta de escalador'}
-            </Text>
+          {/* Tabs de tipo de cuenta */}
+          <View style={[styles.tabContainer, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+            <TouchableOpacity
+              style={[
+                styles.tab,
+                accountType === 'user' && { backgroundColor: colors.primary },
+              ]}
+              onPress={() => setAccountType('user')}
+              activeOpacity={0.8}
+            >
+              <Text style={[
+                styles.tabText,
+                { color: accountType === 'user' ? colors.textInverse : colors.textSecondary },
+              ]}>
+                Escalador
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tab,
+                accountType === 'gym' && { backgroundColor: colors.primary },
+              ]}
+              onPress={() => setAccountType('gym')}
+              activeOpacity={0.8}
+            >
+              <Text style={[
+                styles.tabText,
+                { color: accountType === 'gym' ? colors.textInverse : colors.textSecondary },
+              ]}>
+                Rocódromo
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Formulario */}
           <View style={styles.form}>
+
             {/* Nombre */}
             <View style={styles.fieldGroup}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>
@@ -140,7 +216,7 @@ export default function RegisterScreen() {
               </Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.name ? colors.error : colors.border }]}
-                placeholder={isGym ? 'Ej: Boulder Park Madrid' : 'Tu nombre'}
+                placeholder={isGym ? 'Ej: Boulder Park Madrid' : 'Tu nombre completo'}
                 placeholderTextColor={colors.textMuted}
                 value={name}
                 onChangeText={setName}
@@ -150,20 +226,55 @@ export default function RegisterScreen() {
               {errors.name ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.name}</Text> : null}
             </View>
 
-            {/* Ubicación (solo GYM) */}
+            {/* Alias/Nick — solo usuarios */}
+            {!isGym && (
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Alias</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.nick ? colors.error : colors.border }]}
+                  placeholder="Ej: bloc_king, vertical_v"
+                  placeholderTextColor={colors.textMuted}
+                  value={nick}
+                  onChangeText={setNick}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+                {errors.nick ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.nick}</Text> : null}
+              </View>
+            )}
+
+            {/* País — solo gimnasio */}
             {isGym && (
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Ubicación</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>País</Text>
+                <TouchableOpacity
+                  style={[styles.input, styles.selector, { backgroundColor: colors.surfaceAlt, borderColor: errors.country ? colors.error : colors.border }]}
+                  onPress={() => setCountryModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: country ? colors.textPrimary : colors.textMuted, fontSize: typography.size.md }}>
+                    {country ? COUNTRIES.find(c => c.code === country)?.name : 'Selecciona un país'}
+                  </Text>
+                  <Text style={{ color: colors.textMuted }}>▾</Text>
+                </TouchableOpacity>
+                {errors.country ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.country}</Text> : null}
+              </View>
+            )}
+
+            {/* Ciudad — solo gimnasio */}
+            {isGym && (
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Ciudad</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.location ? colors.error : colors.border }]}
-                  placeholder="Ciudad, País"
+                  style={[styles.input, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: errors.city ? colors.error : colors.border }]}
+                  placeholder="Ej: Madrid, Barcelona"
                   placeholderTextColor={colors.textMuted}
-                  value={location}
-                  onChangeText={setLocation}
+                  value={city}
+                  onChangeText={setCity}
                   autoCorrect={false}
                   autoCapitalize="words"
                 />
-                {errors.location ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.location}</Text> : null}
+                {errors.city ? <Text style={[styles.errorText, { color: colors.error }]}>{errors.city}</Text> : null}
               </View>
             )}
 
@@ -240,6 +351,50 @@ export default function RegisterScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal selector de país */}
+      <Modal
+        visible={countryModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCountryModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Selecciona un país</Text>
+              <TouchableOpacity onPress={() => setCountryModalVisible(false)}>
+                <Text style={[styles.modalClose, { color: colors.primary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.modalSearch, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: colors.border }]}
+              placeholder="Buscar país..."
+              placeholderTextColor={colors.textMuted}
+              value={countrySearch}
+              onChangeText={setCountrySearch}
+              autoCorrect={false}
+            />
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={item => item.code}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.countryItem, { borderBottomColor: colors.border }, country === item.code && { backgroundColor: colors.primaryMuted }]}
+                  onPress={() => {
+                    setCountry(item.code)
+                    setCountryModalVisible(false)
+                    setCountrySearch('')
+                  }}
+                >
+                  <Text style={[styles.countryName, { color: colors.textPrimary }]}>{item.name}</Text>
+                  {country === item.code && <Text style={{ color: colors.primary }}>✓</Text>}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -276,8 +431,22 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.extrabold,
     marginBottom: spacing.xs,
   },
-  subtitle: {
-    fontSize: typography.size.md,
+  tabContainer: {
+    flexDirection: 'row',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: spacing.xl,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabText: {
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.semibold,
   },
   form: {
     gap: spacing.md,
@@ -298,6 +467,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     fontSize: typography.size.md,
     borderWidth: 1,
+  },
+  selector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   errorText: {
     fontSize: typography.size.sm,
@@ -326,18 +500,50 @@ const styles = StyleSheet.create({
   linkTextBold: {
     fontWeight: typography.weight.bold,
   },
-  typeBadge: {
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    maxHeight: '75%',
+    paddingBottom: spacing.xl,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
+  },
+  modalClose: {
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
+  },
+  modalSearch: {
+    margin: spacing.md,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: typography.size.md,
     borderWidth: 1,
   },
-  typeBadgeText: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
-    textAlign: 'center',
+  countryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  countryName: {
+    fontSize: typography.size.md,
   },
 })
