@@ -6,9 +6,10 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../../../lib/supabase'
 import { calcScore, resultFromGoes, goesFromDB, type Goes } from '../../../../lib/scoring'
+import { evaluateAchievements, type MedalDefinition } from '../../../../lib/achievements'
 import { typography, spacing, radius } from '../../../../constants'
 import { useTheme } from '../../../../lib/ThemeContext'
-import { Icon, StarRating } from '../../../../components'
+import { Icon, StarRating, AchievementToast } from '../../../../components'
 import type { Block, Attempt } from '../../../../types'
 
 // Fila 1: solo Flash | Fila 2: 2×, 3×, 4×, +5×
@@ -35,6 +36,7 @@ export default function LogAttemptScreen() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>(null)
+  const [newAchievements, setNewAchievements] = useState<MedalDefinition[]>([])
 
   useEffect(() => { if (id) loadData() }, [id])
 
@@ -108,6 +110,15 @@ export default function LogAttemptScreen() {
         await supabase.from('block_comments').insert(
           { block_id: block.id, user_id: userId, content: trimmed }
         )
+      }
+
+      // Evaluar logros nuevos (solo bloques de gym)
+      if (block.owner_type === 'gym') {
+        const medals = await evaluateAchievements(userId)
+        if (medals.length > 0) {
+          setNewAchievements(medals)
+          return   // la navegación ocurre cuando el toast se cierra
+        }
       }
 
       router.replace(`/(app)/blocks/${block.id}` as any)
@@ -346,6 +357,17 @@ export default function LogAttemptScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Toast de logros — overlay sobre toda la pantalla */}
+      {newAchievements.length > 0 && (
+        <AchievementToast
+          medals={newAchievements}
+          onDismiss={() => {
+            setNewAchievements([])
+            router.replace(`/(app)/blocks/${block!.id}` as any)
+          }}
+        />
+      )}
     </SafeAreaView>
   )
 }
