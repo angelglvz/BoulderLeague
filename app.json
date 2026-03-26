@@ -41,8 +41,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Climbify necesita acceso a tus fotos para adjuntar imágenes a los bloques.",
-          "cameraPermission": "Climbify necesita acceso a la cámara para fotografiar los bloques."
+          "photosPermission": "Climbify necesita acceso a tus fotos para adjuntar imagenes a los bloques.",
+          "cameraPermission": "Climbify necesita acceso a la camara para fotografiar los bloques."
         }
       ]
     ],
