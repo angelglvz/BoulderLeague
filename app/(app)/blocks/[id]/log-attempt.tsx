@@ -24,7 +24,7 @@ export default function LogAttemptScreen() {
   const router = useRouter()
   const { colors } = useTheme()
 
-  function goBack() { router.replace(`/(app)/blocks/${id}` as any) }
+  function goBack() { router.back() }
 
   const [block, setBlock] = useState<Block | null>(null)
   const [existingAttempt, setExistingAttempt] = useState<Attempt | null>(null)
@@ -121,7 +121,7 @@ export default function LogAttemptScreen() {
         }
       }
 
-      router.replace(`/(app)/blocks/${block.id}` as any)
+      router.back()
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Error al guardar el resultado')
     } finally {
@@ -198,7 +198,11 @@ export default function LogAttemptScreen() {
   // ── Formulario de registro ──
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: spacing['3xl'] }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
 
         <TouchableOpacity onPress={goBack} style={styles.backButton}>
           <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
@@ -323,40 +327,43 @@ export default function LogAttemptScreen() {
                 </Text>
               </View>
             </View>
-
-            {saveError && (
-              <View style={[styles.errorCard, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}>
-                <Icon name="alert-circle-outline" size={16} color={colors.error} />
-                <Text style={[styles.errorCardText, { color: colors.error }]}>{saveError}</Text>
-              </View>
-            )}
-
-            {/* ── Botón dinámico ── */}
-            <TouchableOpacity
-              style={[
-                styles.saveButton,
-                selectedGoes !== null
-                  ? { backgroundColor: colors.primary }
-                  : { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-                saving && styles.saveButtonDisabled,
-              ]}
-              onPress={handleSave}
-              disabled={saving}
-              activeOpacity={0.8}
-            >
-              {saving
-                ? <ActivityIndicator color={selectedGoes !== null ? colors.textInverse : colors.textSecondary} />
-                : <Text style={[
-                    styles.saveButtonText,
-                    { color: selectedGoes !== null ? colors.textInverse : colors.textSecondary },
-                  ]}>
-                    {selectedGoes !== null ? 'Registrar' : 'Salir sin registrar'}
-                  </Text>
-              }
-            </TouchableOpacity>
           </>
         )}
       </ScrollView>
+
+      {/* ── Barra inferior fija con el botón de acción ── */}
+      {!existingAttempt && (
+        <View style={[styles.bottomBar, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
+          {saveError && (
+            <View style={[styles.errorCard, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}>
+              <Icon name="alert-circle-outline" size={16} color={colors.error} />
+              <Text style={[styles.errorCardText, { color: colors.error }]}>{saveError}</Text>
+            </View>
+          )}
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              selectedGoes !== null
+                ? { backgroundColor: colors.primary }
+                : { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+              saving && styles.saveButtonDisabled,
+            ]}
+            onPress={handleSave}
+            disabled={saving}
+            activeOpacity={0.8}
+          >
+            {saving
+              ? <ActivityIndicator color={selectedGoes !== null ? colors.textInverse : colors.textSecondary} />
+              : <Text style={[
+                  styles.saveButtonText,
+                  { color: selectedGoes !== null ? colors.textInverse : colors.textSecondary },
+                ]}>
+                  {selectedGoes !== null ? 'Registrar' : 'Salir sin registrar'}
+                </Text>
+            }
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Toast de logros — overlay sobre toda la pantalla */}
       {newAchievements.length > 0 && (
@@ -364,7 +371,7 @@ export default function LogAttemptScreen() {
           medals={newAchievements}
           onDismiss={() => {
             setNewAchievements([])
-            router.replace(`/(app)/blocks/${block!.id}` as any)
+            router.back()
           }}
         />
       )}
@@ -398,6 +405,8 @@ const styles = StyleSheet.create({
   saveButton:         { borderRadius: radius.lg, paddingVertical: spacing.md, alignItems: 'center' },
   saveButtonDisabled: { opacity: 0.6 },
   saveButtonText:     { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  // Barra inferior fija
+  bottomBar:          { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, paddingBottom: spacing.xl, gap: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth },
   // Error
   errorText:          { fontSize: typography.size.md },
   errorCard:          { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radius.md, padding: spacing.md, borderWidth: 1 },

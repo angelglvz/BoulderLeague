@@ -80,7 +80,7 @@ export default function RankingScreen() {
     if (!user) return false
     if (user.id === l.creator_id) return true
     if (l.ranking_visible_during) return true
-    if (l.end_date && new Date() > new Date(l.end_date + 'T23:59:59')) return true
+    if (l.end_date && new Date() > new Date(l.end_date)) return true
     return false
   }
 
@@ -240,7 +240,7 @@ export default function RankingScreen() {
   if (!canViewRanking(league)) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingHorizontal: spacing.lg }]}>
           <TouchableOpacity onPress={() => router.replace(`/(app)/leagues/${id}`)} style={styles.backButton}>
             <Icon name="arrow-back-outline" size={22} color={colors.textSecondary} />
             <Text style={[styles.backText, { color: colors.textSecondary }]}>Volver</Text>
@@ -255,7 +255,7 @@ export default function RankingScreen() {
           {league.end_date && (
             <Text style={[styles.lockedDate, { color: colors.primary }]}>
               Disponible a partir del{' '}
-              {new Date(league.end_date + 'T12:00:00').toLocaleDateString('es-ES', {
+              {new Date(league.end_date).toLocaleDateString('es-ES', {
                 day: 'numeric', month: 'long', year: 'numeric',
               })}
             </Text>

@@ -53,16 +53,20 @@ export default function AddGymBlockScreen() {
       .then(({ count }) => setActiveCount(count ?? 0))
   }, [user])
 
-  // En móvil abre la cámara directamente; en web abre galería
+  // Muestra siempre el diálogo cámara/galería en móvil
   async function handlePhotoPress() {
     if (Platform.OS === 'web') {
       await pickFromGallery()
-    } else {
-      await openCamera()
+      return
     }
+    Alert.alert('Añadir foto', 'Elige una opción', [
+      { text: 'Cámara',   onPress: openCamera },
+      { text: 'Galería',  onPress: pickFromGallery },
+      { text: 'Cancelar', style: 'cancel' },
+    ])
   }
 
-  // Al tocar la foto ya puesta en móvil: ofrece cámara o galería
+  // Al tocar la foto ya puesta: mismo diálogo
   async function handleChangePhoto() {
     if (Platform.OS === 'web') {
       await pickFromGallery()
@@ -84,7 +88,7 @@ export default function AddGymBlockScreen() {
       ])
       return
     }
-    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [3, 4], quality: 0.7 })
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 })
     if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri)
   }
 
@@ -93,7 +97,7 @@ export default function AddGymBlockScreen() {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') { Alert.alert('Permiso denegado', 'Necesitamos acceso a la galería.'); return }
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [3, 4], quality: 0.7 })
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 })
     if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri)
   }
 
@@ -115,23 +119,37 @@ export default function AddGymBlockScreen() {
   }
 
   async function uploadPhoto(uri: string): Promise<string> {
-    const response = await fetch(uri)
-    const blob = await response.blob()
-    let ext = 'jpg'
     if (Platform.OS === 'web') {
-      ext = blob.type.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
-    } else {
-      ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg'
+      // En web fetch() sí puede leer blob: / data: URIs sin problema
+      const response = await fetch(uri)
+      const blob = await response.blob()
+      const ext = blob.type.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
+      const contentType = blob.type
+      const path = `blocks/gym_${user!.id}_${Date.now()}.${ext}`
+      await supabase.storage.from('block-photos').upload(path, blob, { contentType })
+      return supabase.storage.from('block-photos').getPublicUrl(path).data.publicUrl
     }
+
+    // En móvil, fetch() NO puede leer URIs file:// ni content:// en Hermes.
+    // XMLHttpRequest sí tiene soporte nativo para leerlas como ArrayBuffer.
+    const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg'
     const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`
     const path = `blocks/gym_${user!.id}_${Date.now()}.${ext}`
 
-    if (Platform.OS === 'web') {
-      await supabase.storage.from('block-photos').upload(path, blob, { contentType })
-    } else {
-      const ab = await blob.arrayBuffer()
-      await supabase.storage.from('block-photos').upload(path, ab, { contentType })
-    }
+    const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.onload = () => resolve(xhr.response as ArrayBuffer)
+      xhr.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada'))
+      xhr.responseType = 'arraybuffer'
+      xhr.open('GET', uri)
+      xhr.send()
+    })
+
+    const { error } = await supabase.storage
+      .from('block-photos')
+      .upload(path, arrayBuffer, { contentType })
+    if (error) throw error
+
     return supabase.storage.from('block-photos').getPublicUrl(path).data.publicUrl
   }
 
